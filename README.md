@@ -9,7 +9,7 @@ In this version of Tetris, players can:
 - Rotate pieces using the up arrow key
 - Accelerate piece descent using the down arrow key
 
-The game ends when the stack of Tetrominos reaches the top of the play field.
+The game ends when the stack of Tetrominoes reaches the top of the play field.
 
 ## How to Play
 
