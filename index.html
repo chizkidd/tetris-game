@@ -305,11 +305,31 @@ bindButton("rotate", () => {
 /* Resize canvas properly on iPhone */
 function resizeCanvas() {
     const container = document.getElementById("game-container");
-    const height = container.clientHeight;
-    const width = (height / 20) * 12; // 12:20 Tetris ratio
 
-    canvas.style.height = height + "px";
+    // PERFECT 12:20 aspect ratio
+    const ratio = 20 / 12;
+
+    // make the canvas as tall as possible without exceeding width
+    let height = container.clientHeight;
+    let width = height / ratio;
+
+    // if it’s too wide, reduce height instead
+    if (width > container.clientWidth) {
+        width = container.clientWidth;
+        height = width * ratio;
+    }
+
+    // set CSS size
     canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+
+    // set REAL canvas resolution to match
+    canvas.width = width;
+    canvas.height = height;
+
+    // scale drawing units
+    ctx.setTransform(1, 0, 0, 1, 0, 0);   // reset transform
+    ctx.scale(width / 12, height / 20);  // scale to grid size
 }
 
 window.addEventListener("resize", resizeCanvas);
