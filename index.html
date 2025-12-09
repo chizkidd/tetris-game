@@ -1,32 +1,45 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TETRIS</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Tetris — Complete</title>
 <style>
-  :root{--bg:#0d0d0d;--panel:#1a1a1a;--accent:#00d0ff}
-  html,body{margin:0;height:100%;background:var(--bg);color:#fff;font-family:system-ui;overflow:hidden}
-  body{display:flex;flex-direction:column}
-  header{background:var(--panel);padding:14px;text-align:center;position:relative}
-  h1{margin:0;font-size:22px}
-  #score{font-size:16px;margin-top:6px;color:#aaa}
-  #game-wrap{flex:1;display:flex;justify-content:center;align-items:center;padding:8px 8px 80px;box-sizing:border-box}
-  #game-container{width:100%;max-width:420px;height:100%;display:flex;justify-content:center;align-items:center}
-  canvas{background:#111;border-radius:12px;box-shadow:0 10px 30px #000;display:block}
-  #controls{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);padding:12px;display:flex;justify-content:space-around;gap:10px}
-  .btn{width:66px;height:66px;border-radius:14px;border:0;background:#333;color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
-  .btn:active,.btn.active{background:var(--accent)}
-  #restartBtn{background:#e74c3c}
-  #restartBtn:active{background:#c0392b}
-  #overlay{
-    position:absolute;inset:0;background:rgba(0,0,0,0.9);
-    display:flex;flex-direction:column;justify-content:center;align-items:center;
-    font-size:28px;z-index:10;transition:opacity .4s
-  }
-  #overlay.hidden{opacity:0;pointer-events:none}
-  @media(min-width:768px){
-    #controls{position:static;margin-top:12px;background:none;padding:0}
+  :root{--bg:#111;--panel:#222;--muted:#888;--btn-bg:#444;--btn-active:#666;--accent:#3498db}
+  html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto;overflow:hidden;touch-action:none;overscroll-behavior:none;}
+  
+  header{background:var(--panel);padding:10px 0 6px;text-align:center;z-index:10;position:relative}
+  h1{margin:0;font-size:18px;letter-spacing:1px}
+  #score{margin-top:4px;font-size:14px;color:var(--muted)}
+
+  /* Menu Bar for Game States */
+  #menu{display:flex;justify-content:center;gap:8px;padding:8px;background:var(--panel);border-top:1px solid #333}
+  .menu-btn{background:var(--btn-bg);color:#ddd;border:none;padding:6px 12px;border-radius:6px;font-size:12px;text-transform:uppercase;font-weight:bold;cursor:pointer;touch-action:manipulation;transition:background 0.1s}
+  .menu-btn:active{background:var(--btn-active)}
+  .menu-btn.primary{background:var(--accent);color:#fff}
+
+  /* Main Layout */
+  #game-wrap{display:flex;flex:1;align-items:flex-start;justify-content:center;padding:10px;box-sizing:border-box;overflow:hidden}
+  
+  #game-container{width:100%;max-width:420px;height:calc(100dvh - 220px);display:flex;align-items:center;justify-content:center;position:relative}
+  
+  canvas{background:#1a1a1a;display:block;border-radius:4px;box-shadow:0 0 10px rgba(0,0,0,0.5)}
+
+  /* Overlay for Pause/Game Over */
+  #overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:4px;visibility:hidden;z-index:5}
+  #overlay.visible{visibility:visible}
+  #overlay-msg{font-size:24px;font-weight:bold;color:#fff;text-shadow:0 2px 4px #000;margin-bottom:10px}
+
+  /* Controls */
+  #controls{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-evenly;padding:12px 10px 20px;background:linear-gradient(to top, rgba(0,0,0,0.9), transparent);z-index:20}
+  .btn{width:64px;height:64px;border-radius:50%;border:2px solid #555;background:rgba(60,60,60,0.8);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+  .btn:active{background:var(--accent);border-color:var(--accent)}
+  
+  /* Desktop Layout Tweaks */
+  @media(min-width:700px){
+    #game-container{height:calc(100vh - 180px)}
+    #controls{position:static;margin-top:10px;background:none;justify-content:center;gap:20px}
+    .btn{width:60px;height:60px;font-size:20px}
   }
 </style>
 </head>
@@ -37,240 +50,398 @@
   <div id="score">Score: 0</div>
 </header>
 
+<div id="menu">
+  <button id="btn-start" class="menu-btn primary">Start</button>
+  <button id="btn-pause" class="menu-btn">Pause</button>
+  <button id="btn-restart" class="menu-btn">Restart</button>
+  <button id="btn-end" class="menu-btn">End</button>
+</div>
+
 <div id="game-wrap">
   <div id="game-container">
-    <canvas id="board"></canvas>
-
-    <!-- Start / Game Over / Pause overlay -->
+    <canvas id="board" role="application" aria-label="Tetris board"></canvas>
     <div id="overlay">
-      <div id="overlayTitle">TETRIS</div>
-      <div id="overlayMsg">Tap or Press Any Key to Start</div>
-      <div id="finalScore" style="display:none;font-size:22px;margin-top:20px"></div>
+      <div id="overlay-msg">PAUSED</div>
     </div>
   </div>
 </div>
 
 <div id="controls">
-  <button class="btn" id="left">Left Arrow</button>
-  <button class="btn" id="rotate">Rotate</button>
-  <button class="btn" id="right">Right Arrow</button>
-  <button class="btn" id="down">Down Arrow</button>
-  <button class="btn" id="restartBtn">Restart</button>
+  <button class="btn" id="left">←</button>
+  <button class="btn" id="rotate">⟳</button>
+  <button class="btn" id="down">↓</button>
+  <button class="btn" id="right">→</button>
 </div>
 
 <script>
-/* ====================== CONFIG ====================== */
-const COLS = 12, ROWS = 20;
+/* ========= CONFIG ========= */
+const COLS = 12;
+const ROWS = 20;
+const PADDING = 10;
+const MAX_CANVAS_WIDTH = 420;
+const MIN_CELL = 16;
+
+/* ========= DOM ========= */
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d', {alpha:false});
 const scoreEl = document.getElementById('score');
+const container = document.getElementById('game-container');
 const overlay = document.getElementById('overlay');
-const overlayTitle = document.getElementById('overlayTitle');
-const overlayMsg = document.getElementById('overlayMsg');
-const finalScoreEl = document.getElementById('finalScore');
+const overlayMsg = document.getElementById('overlay-msg');
+const btnStart = document.getElementById('btn-start');
+const btnPause = document.getElementById('btn-pause');
 
-/* ====================== STATE ====================== */
+/* ========= STATE ========= */
 let arena = createMatrix(COLS, ROWS);
-let player = {pos:{x:0,y:0}, matrix:null, score:0};
-let dropCounter = 0, dropInterval = 800, lastTime = 0;
-let gameRunning = false, gamePaused = false, gameOver = false;
+let player = { pos: {x:0,y:0}, matrix: null, score: 0 };
+let dropCounter = 0;
+let dropInterval = 800;
+let lastTime = 0;
+let animationId = null;
 
-/* ====================== COLORS ====================== */
-const COLORS = [null,'#f1c40f','#e67e22','#9b59b6','#3498db','#1abc9c','#e74c3c','#2ecc71'];
+let isRunning = false;
+let isPaused = false;
+let isGameOver = false;
 
-/* ====================== UTILS ====================== */
-function createMatrix(w,h){ return Array.from({length:h},()=>Array(w).fill(0));
-function randPiece(){ const p='ILJOTSZ'; return p[Math.floor(Math.random()*p.length)]; }
-function createPiece(t){
-  if(t==='I') return [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
-  if(t==='O') return [[2,2],[2,2]];
-  if(t==='T') return [[0,3,0],[3,3,3]];
-  if(t==='L') return [[0,0,4],[4,4,4]];
-  if(t==='J') return [[5,0,0],[5,5,5]];
-  if(t==='S') return [[0,6,6],[6,6,0]];
-  if(t==='Z') return [[7,7,0],[0,7,7]];
+/* ========= COLORS ========= */
+const COLORS = [ null, '#f1c40f', '#e67e22', '#9b59b6', '#3498db', '#1abc9c', '#e74c3c', '#2ecc71' ];
+
+/* ========= UTILITIES ========= */
+function createMatrix(w,h){
+  return Array.from({length:h}, ()=>Array(w).fill(0));
+}
+function randPiece(){
+  const pieces = 'ILJOTSZ';
+  return pieces[Math.floor(Math.random()*pieces.length)];
+}
+function createPiece(type){
+  if(type==='T') return [[0,1,0],[1,1,1]];
+  if(type==='O') return [[2,2],[2,2]];
+  if(type==='L') return [[0,0,3],[3,3,3]];
+  if(type==='J') return [[4,0,0],[4,4,4]];
+  if(type==='I') return [[0,5,0,0],[0,5,0,0],[0,5,0,0],[0,5,0,0]];
+  if(type==='S') return [[0,6,6],[6,6,0],[0,0,0]];
+  if(type==='Z') return [[7,7,0],[0,7,7],[0,0,0]];
 }
 
-/* ====================== DRAW & RESIZE ====================== */
-let cellSize = 20;
-function resize(){
-  const rect = document.getElementById('game-container').getBoundingClientRect();
-  const maxW = Math.min(rect.width, 420);
-  const maxH = rect.height;
-  const size = Math.max(Math.min(maxW/COLS, maxH/ROWS), 18);
-  const w = size * COLS, h = size * ROWS;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  canvas.width = w; canvas.height = h;
-  cellSize = size;
+/* ========= DRAW ========= */
+let cellW = 20, cellH = 20;
+
+function resizeCanvas(){
+  const rect = container.getBoundingClientRect();
+  let availH = rect.height;
+  let availW = Math.min(rect.width, MAX_CANVAS_WIDTH);
+
+  const fromHeight = Math.floor(availH / ROWS);
+  const fromWidth = Math.floor(availW / COLS);
+  const base = Math.max(Math.min(fromHeight, fromWidth), MIN_CELL);
+
+  const canvasWidth = base * COLS;
+  const canvasHeight = base * ROWS;
+
+  canvas.style.width = canvasWidth + 'px';
+  canvas.style.height = canvasHeight + 'px';
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  cellW = canvas.width / COLS;
+  cellH = canvas.height / ROWS;
+  
+  ctx.imageSmoothingEnabled = false;
   draw();
 }
-window.addEventListener('resize',()=>setTimeout(resize,100));
-resize();
 
-/* ====================== GAME LOGIC ====================== */
 function draw(){
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  // locked blocks
-  arena.forEach((row,y)=>row.forEach((v,x)=>{
-    if(v) drawCell(x,y,COLORS[v]);
-  }));
-  // current piece
-  if(player.matrix){
-    player.matrix.forEach((row,y)=>row.forEach((v,x=>{
-      if(v) drawCell(player.pos.x+x, player.pos.y+y, COLORS[v]);
-    }));
+
+  // Draw Arena
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      if(arena[y][x]) drawCell(x,y,COLORS[arena[y][x]]);
+    }
+  }
+
+  // Draw Player
+  if(player.matrix && isRunning){
+    for(let y=0;y<player.matrix.length;y++){
+      for(let x=0;x<player.matrix[y].length;x++){
+        if(player.matrix[y][x]){
+          drawCell(player.pos.x + x, player.pos.y + y, COLORS[player.matrix[y][x]]);
+        }
+      }
+    }
   }
 }
+
 function drawCell(x,y,color){
   if(y<0) return;
-  const s = cellSize;
+  // Small inset for grid effect
   ctx.fillStyle = color;
-  ctx.fillRect(x*s+1, y*s+1, s-2, s-2);
+  ctx.fillRect(Math.round(x*cellW)+1, Math.round(y*cellH)+1, Math.round(cellW)-2, Math.round(cellH)-2);
 }
-function collide(){
-  const m=player.matrix, o=player.pos;
-  for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
-    if(m[y][x] && (arena[y+o.y] && arena[y+o.y][x+o.x])!==0) return true;
+
+/* ========= LOGIC ========= */
+function collide(arena, player){
+  const m = player.matrix;
+  const o = player.pos;
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<m[y].length;x++){
+      if(m[y][x] !== 0){
+        const ax = x + o.x;
+        const ay = y + o.y;
+        if(ay >= ROWS || ax < 0 || ax >= COLS) return true;
+        if(ay >= 0 && arena[ay][ax] !== 0) return true;
+      }
+    }
   }
-  return o.y+m.length>ROWS || o.x<0 || o.x+m[0].length>COLS;
+  return false;
 }
-function merge(){
-  player.matrix.forEach((row,y)=>row.forEach((v,x)=>{
-    if(v && player.pos.y+y>=0) arena[player.pos.y+y][player.pos.x+x]=v;
-  }));
+
+function mergePlayer(){
+  player.matrix.forEach((row,y)=>{
+    row.forEach((val,x)=>{
+      if(val && (player.pos.y + y) >= 0){
+        arena[player.pos.y + y][player.pos.x + x] = val;
+      }
+    });
+  });
 }
+
 function sweep(){
-  let lines=0;
-  outer:for(let y=ROWS-1;y>=0;y--){
-    for(let x=0;x<COLS;x++) if(!arena[y][x]) continue outer;
+  let lines = 0;
+  outer: for(let y=ROWS-1;y>=0;y--){
+    for(let x=0;x<COLS;x++){
+      if(arena[y][x]===0) continue outer;
+    }
     arena.splice(y,1);
     arena.unshift(new Array(COLS).fill(0));
     lines++;
+    y++;
   }
-  if(lines) player.score += lines*100;
+  if(lines > 0){
+    player.score += lines * 10 * lines; // simple quadratic scoring
+    updateScore();
+  }
 }
+
 function playerReset(){
   const type = randPiece();
   player.matrix = createPiece(type);
-  player.pos.x = Math.floor((COLS-player.matrix[0].length)/2);
-  player.pos.y = 0;
-  if(collide()){
-    arena = createMatrix(COLS,ROWS);
-    player.score = 0;
-    gameOver = true;
-    showOverlay("GAME OVER",`Score: ${player.score}<br>Tap or Space to Restart`);
+  player.pos.x = Math.floor((COLS - player.matrix[0].length)/2);
+  player.pos.y = -2;
+
+  // Game Over check
+  if(collide(arena, player)){
+    endGame();
   }
 }
-function drop(){
+
+function playerDrop(){
   player.pos.y++;
-  if(collide()){
+  if(collide(arena, player)){
     player.pos.y--;
-    merge();
+    mergePlayer();
     sweep();
     playerReset();
   }
-  dropCounter=0;
+  dropCounter = 0;
 }
-function hardDrop(){
-  while(!collide()) player.pos.y++;
-  player.pos.y--;
-  merge();
-  sweep();
-  playerReset();
-  dropCounter=0;
-}
-function move(dir){
+
+function playerMove(dir){
   player.pos.x += dir;
-  if(collide()) player.pos.x -= dir;
+  if(collide(arena, player)) player.pos.x -= dir;
 }
-function rotate(){
-  const original = player.matrix.map(r=>r.slice());
+
+function rotateMatrix(m){
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<y;x++){
+      [m[x][y], m[y][x]] = [m[y][x], m[x][y]];
+    }
+  }
+  m.forEach(row => row.reverse());
+}
+
+function playerRotate(){
+  const m = player.matrix;
+  const original = m.map(r=>r.slice());
+  rotateMatrix(m);
+  
+  // Wall kicks
+  const kicks = [0, -1, 1, -2, 2]; 
   const oldX = player.pos.x;
-  // transpose + reverse
-  for(let y=0;y<player.matrix.length;y++)
-    for(let x=0;x<y;x++)
-      [player.matrix[x][y],player.matrix[y][x]] = [player.matrix[y][x],player.matrix[x][y]];
-  player.matrix.forEach(r=>r.reverse());
-  // simple wall kick
-  const kicks = [0,-1,1,-2,2];
+  
+  let success = false;
   for(const k of kicks){
     player.pos.x = oldX + k;
-    if(!collide()) return;
+    if(!collide(arena, player)){
+      success = true;
+      break;
+    }
   }
-  player.matrix = original;
-  player.pos.x = oldX;
+  
+  if(!success){
+    player.matrix = original;
+    player.pos.x = oldX;
+  }
 }
-function updateScore(){ scoreEl.textContent = `Score: ${player.score}`; }
 
-/* ====================== INPUT ====================== */
-document.getElementById('left').onclick = ()=>move(-1);
-document.getElementById('right').onclick = ()=>move(1);
-document.getElementById('down').onclick = ()=>drop();
-document.getElementById('rotate').onclick = ()=>rotate();
-document.getElementById('restartBtn').onclick = restart;
-
-document.addEventListener('keydown',e=>{
-  if(gameOver || !gameRunning) return;
-  if(e.code==='ArrowLeft') move(-1);
-  if(e.code==='ArrowRight') move(1);
-  if(e.code==='ArrowDown') drop();
-  if(e.code==='ArrowUp' || e.code==='Space') { e.preventDefault(); rotate(); }
-  if(e.code==='Enter') hardDrop();
-  if(e.code==='KeyP') togglePause();
-});
-
-/* ====================== OVERLAY & GAME STATE ====================== */
-function showOverlay(title,msg=''){
-  overlayTitle.textContent = title;
-  overlayMsg.innerHTML = msg;
-  finalScoreEl.style.display = gameOver ? 'block' : 'none';
-  if(gameOver) finalScoreEl.innerHTML = `Score: ${player.score}`;
-  overlay.classList.remove('hidden');
-}
-function hideOverlay(){ overlay.classList.add('hidden'); }
-function togglePause(){
-  if(gameOver) return;
-  gamePaused = !gamePaused;
-  overlayTitle.textContent = gamePaused ? 'PAUSED' : 'TETRIS';
-  overlayMsg.textContent = gamePaused ? 'Press P or tap to resume' : '';
-  overlay.classList.toggle('hidden', !gamePaused);
-}
-function startGame(){
-  if(gameRunning && !gameOver) return;
-  gameRunning = true;
-  gamePaused = false;
-  gameOver = false;
-  arena = createMatrix(COLS,ROWS);
-  player.score = 0;
-  updateScore();
+function hardDrop(){
+  while(!collide(arena, player)){
+    player.pos.y++;
+  }
+  player.pos.y--;
+  mergePlayer();
+  sweep();
   playerReset();
-  hideOverlay();
-  lastTime = performance.now();
-  requestAnimationFrame(gameLoop);
-}
-function restart(){
-  startGame();
+  dropCounter = 0;
 }
 
-/* Tap / click anywhere also starts/resumes */
-canvas.onclick = startGame;
-overlay.onclick = startGame;
-
-/* ====================== MAIN LOOP ====================== */
-function gameLoop(time=0){
-  if(!gameRunning || gamePaused){ requestAnimationFrame(gameLoop); return; }
+/* ========= GAME LOOP & CONTROL ========= */
+function update(time=0){
+  if(!isRunning || isPaused || isGameOver) return;
+  
   const delta = time - lastTime;
   lastTime = time;
   dropCounter += delta;
-  if(dropCounter > dropInterval) drop();
+  
+  if(dropCounter > dropInterval){
+    playerDrop();
+  }
+  
   draw();
-  requestAnimationFrame(gameLoop);
+  animationId = requestAnimationFrame(update);
 }
 
-/* Start screen */
-showOverlay('TETRIS','Tap screen or press any key');
+function startGame(){
+  if(isRunning && !isGameOver) return; // already running
+  
+  // Reset Everything
+  arena = createMatrix(COLS, ROWS);
+  player.score = 0;
+  isRunning = true;
+  isPaused = false;
+  isGameOver = false;
+  
+  updateScore();
+  toggleOverlay(false);
+  playerReset();
+  
+  // Start Loop
+  if(animationId) cancelAnimationFrame(animationId);
+  lastTime = performance.now();
+  update();
+}
+
+function pauseGame(){
+  if(!isRunning || isGameOver) return;
+  isPaused = !isPaused;
+  
+  if(isPaused){
+    btnPause.textContent = "Resume";
+    overlayMsg.textContent = "PAUSED";
+    toggleOverlay(true);
+    if(animationId) cancelAnimationFrame(animationId);
+  } else {
+    btnPause.textContent = "Pause";
+    toggleOverlay(false);
+    lastTime = performance.now();
+    update();
+  }
+}
+
+function endGame(){
+  isRunning = false;
+  isGameOver = true;
+  if(animationId) cancelAnimationFrame(animationId);
+  overlayMsg.textContent = "GAME OVER";
+  toggleOverlay(true);
+  draw(); // Draw final state
+}
+
+function restartGame(){
+  endGame(); // stop current
+  startGame(); // start new
+  btnPause.textContent = "Pause";
+}
+
+function toggleOverlay(show){
+  overlay.className = show ? 'visible' : '';
+}
+
+function updateScore(){ 
+  scoreEl.textContent = 'Score: ' + player.score; 
+}
+
+/* ========= INPUT HANDLING ========= */
+// Check state before allowing input
+function handleInput(action){
+  if(!isRunning || isPaused || isGameOver) return;
+  action();
+  draw(); // Force immediate redraw for responsiveness
+}
+
+// Touch / Mouse
+function bindButton(id, action){
+  const el = document.getElementById(id);
+  // prevent default to stop scrolling/zooming
+  const trigger = (e) => {
+    if(e.cancelable) e.preventDefault();
+    handleInput(action);
+  };
+  el.addEventListener('touchstart', trigger, {passive:false});
+  el.addEventListener('mousedown', trigger);
+}
+
+bindButton('left', ()=>playerMove(-1));
+bindButton('right', ()=>playerMove(1));
+bindButton('rotate', ()=>playerRotate());
+bindButton('down', ()=>playerDrop());
+
+// Menu Buttons
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-pause').addEventListener('click', pauseGame);
+document.getElementById('btn-restart').addEventListener('click', restartGame);
+document.getElementById('btn-end').addEventListener('click', endGame);
+
+// Keyboard
+window.addEventListener('keydown', e => {
+  if(e.repeat) return;
+  
+  // Global shortcuts
+  if(e.code === 'KeyP') { pauseGame(); return; }
+  
+  if(!isRunning || isPaused || isGameOver) return;
+
+  switch(e.code){
+    case 'ArrowLeft':  case 'KeyA': handleInput(()=>playerMove(-1)); break;
+    case 'ArrowRight': case 'KeyD': handleInput(()=>playerMove(1)); break;
+    case 'ArrowUp':    case 'KeyW': handleInput(()=>playerRotate()); break;
+    case 'ArrowDown':  case 'KeyS': handleInput(()=>playerDrop()); break;
+    case 'Space': 
+      e.preventDefault(); 
+      handleInput(()=>playerRotate()); 
+      break;
+    case 'Enter': 
+      e.preventDefault(); 
+      handleInput(()=>hardDrop()); 
+      break;
+  }
+});
+
+/* ========= INITIALIZATION ========= */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resizeCanvas, 100);
+});
+
+// Setup initial view
+resizeCanvas();
+draw();
+overlayMsg.textContent = "PRESS START";
+toggleOverlay(true);
+
 </script>
 </body>
 </html>
