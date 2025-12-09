@@ -3,93 +3,63 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Tetris</title>
+<title>Tetris — Stable</title>
 <style>
   :root{--bg:#111;--panel:#222;--muted:#888}
   html,body{
-    height:100dvh;
-    margin:0;
-    overflow:hidden; /* REMOVE SCROLL */
-    background:var(--bg);
-    color:#fff;
+    height:100%;margin:0;background:var(--bg);color:#fff;
     font-family:system-ui,-apple-system,Segoe UI,Roboto;
+    overflow:hidden; /* ADDED: prevents page scroll */
   }
+
   header{background:var(--panel);padding:12px;text-align:center}
   h1{margin:0;font-size:20px}
   #score{margin-top:6px;font-size:15px;color:var(--muted)}
 
   #game-wrap{
-    display:flex;
-    height:calc(100dvh - 200px);
-    align-items:center;
-    justify-content:center;
-    padding:12px;
-    box-sizing:border-box;
+    display:flex;flex:1;align-items:flex-start;justify-content:center;
+    padding:12px;box-sizing:border-box
   }
 
   #game-container{
-    width:100%;
-    max-width:420px;
-    height:100%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    position:relative;
+    width:100%;max-width:420px;
+    height:calc(100dvh - 210px); /* adjusted for new menu */
+    display:flex;align-items:center;justify-content:center;
+    position:relative
   }
 
   canvas{
-    background:var(--panel);
-    display:block;
-    border-radius:6px;
-    touch-action:none;
+    background:var(--panel);display:block;border-radius:6px;
+    touch-action:none
   }
 
-  /* GAME CONTROL BAR */
-  #game-buttons{
-    display:flex;
-    justify-content:center;
-    gap:12px;
-    padding:8px;
-    background:#0003;
-  }
-  .gbtn{
-    padding:10px 14px;
-    font-size:15px;
-    border:0;
-    border-radius:8px;
-    background:#444;
-    color:#fff;
-  }
-  .gbtn:active{background:#666}
-
-  /* MOVEMENT CONTROLS */
+  /* Controls */
   #controls{
-    position:fixed;
-    left:0; right:0;
-    bottom:8px;
-    display:flex;
-    justify-content:space-around;
-    padding:10px 16px;
-    gap:12px;
-    background:rgba(0,0,0,0.25);
+    position:fixed;left:0;right:0;bottom:8px;
+    display:flex;justify-content:space-around;
+    padding:10px 16px;gap:12px;
+    background:rgba(0,0,0,0.25)
   }
+
   .btn{
-    width:68px;height:68px;
-    border-radius:12px;
-    border:0;
-    background:#444;
-    color:#fff;
-    font-size:26px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
+    width:68px;height:68px;border-radius:12px;border:0;
+    background:#444;color:#fff;font-size:26px;
+    display:flex;align-items:center;justify-content:center;
+    touch-action:manipulation
   }
   .btn:active{background:#666}
 
-  @media(min-width:900px){
-    #controls{position:static;margin:12px 0}
-    #game-wrap{height:calc(100vh - 240px)}
+  /* ADDED: Game control bar */
+  #game-menu{
+    display:flex;justify-content:center;gap:10px;
+    padding:8px;background:#0003;
   }
+  .menu-btn{
+    padding:8px 14px;border-radius:8px;
+    background:#444;border:0;color:white;font-size:14px;
+  }
+  .menu-btn:active{background:#666}
+
 </style>
 </head>
 <body>
@@ -99,17 +69,18 @@
   <div id="score">Score: 0</div>
 </header>
 
-<!-- TOP GAME BUTTONS -->
-<div id="game-buttons">
-  <button class="gbtn" id="startBtn">Start</button>
-  <button class="gbtn" id="pauseBtn">Pause</button>
-  <button class="gbtn" id="restartBtn">Restart</button>
-  <button class="gbtn" id="endBtn">End</button>
+<!-- ADDED: Game control menu -->
+<div id="game-menu">
+  <button class="menu-btn" id="startBtn">Start</button>
+  <button class="menu-btn" id="pauseBtn">Pause</button>
+  <button class="menu-btn" id="resumeBtn">Resume</button>
+  <button class="menu-btn" id="restartBtn">Restart</button>
+  <button class="menu-btn" id="endBtn">End</button>
 </div>
 
 <div id="game-wrap">
   <div id="game-container">
-    <canvas id="board" role="application" aria-label="Tetris board"></canvas>
+    <canvas id="board"></canvas>
   </div>
 </div>
 
@@ -128,68 +99,66 @@ const MAX_CANVAS_WIDTH = 420;
 const MIN_CELL = 18;
 
 /* ========= DOM ========= */
-const canvas = document.getElementById('board');
-const ctx = canvas.getContext('2d', {alpha:false});
-const scoreEl = document.getElementById('score');
-const container = document.getElementById('game-container');
-
-/* GAME CONTROL BUTTONS */
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const restartBtn = document.getElementById('restartBtn');
-const endBtn = document.getElementById('endBtn');
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d",{alpha:false});
+const scoreEl = document.getElementById("score");
+const container = document.getElementById("game-container");
 
 /* ========= STATE ========= */
-let arena, player;
-let dropCounter = 0, dropInterval = 700, lastTime = 0;
-let running = false;
-let paused = false;
-let ended = false;
+let arena, player, lastTime=0, dropCounter=0, dropInterval=700;
+let running = false;  // ADDED: start/pause system
 
-/* ========= COLORS ========= */
-const COLORS = [null,'#f1c40f','#e67e22','#9b59b6','#3498db','#1abc9c','#e74c3c','#2ecc71'];
+const COLORS=[null,"#f1c40f","#e67e22","#9b59b6","#3498db","#1abc9c","#e74c3c","#2ecc71"];
 
-/* ========= UTILITIES ========= */
-const createMatrix = (w,h)=>Array.from({length:h},()=>Array(w).fill(0));
+/* ========= MATRIX ========= */
+function createMatrix(w,h){
+  return Array.from({length:h},()=>Array(w).fill(0));
+}
+
+function createPiece(type){
+  if(type==="T") return [[0,1,0],[1,1,1]];
+  if(type==="O") return [[2,2],[2,2]];
+  if(type==="L") return [[0,0,3],[3,3,3]];
+  if(type==="J") return [[4,0,0],[4,4,4]];
+  if(type==="I") return [[0,5,0,0],[0,5,0,0],[0,5,0,0],[0,5,0,0]];
+  if(type==="S") return [[0,6,6],[6,6,0],[0,0,0]];
+  if(type==="Z") return [[7,7,0],[0,7,7],[0,0,0]];
+}
 
 function randPiece(){
-  return 'ILJOTSZ'[Math.floor(Math.random()*7)];
+  const p="ILJOTSZ";
+  return p[Math.floor(Math.random()*p.length)];
 }
 
-function createPiece(t){
-  if(t==='T') return [[0,1,0],[1,1,1]];
-  if(t==='O') return [[2,2],[2,2]];
-  if(t==='L') return [[0,0,3],[3,3,3]];
-  if(t==='J') return [[4,0,0],[4,4,4]];
-  if(t==='I') return [[0,5,0,0],[0,5,0,0],[0,5,0,0],[0,5,0,0]];
-  if(t==='S') return [[0,6,6],[6,6,0],[0,0,0]];
-  if(t==='Z') return [[7,7,0],[0,7,7],[0,0,0]];
-}
-
-/* ========= DRAW ========= */
-let cellW=20, cellH=20;
+/* ========= CANVAS RESIZE ========= */
+let cellW=20,cellH=20;
 
 function resizeCanvas(){
-  const rect = container.getBoundingClientRect();
-  let availH = rect.height - (PADDING*2);
-  let availW = Math.min(rect.width - (PADDING*2), MAX_CANVAS_WIDTH);
+  const rect=container.getBoundingClientRect();
+  let availH=rect.height - (PADDING*2);
+  let availW=Math.min(rect.width - (PADDING*2), MAX_CANVAS_WIDTH);
 
-  const base = Math.max(
-      Math.min( Math.floor(availH/ROWS), Math.floor(availW/COLS) ),
-      MIN_CELL
-  );
+  const fromH=Math.floor(availH/ROWS);
+  const fromW=Math.floor(availW/COLS);
+  const base=Math.max(Math.min(fromH,fromW),MIN_CELL);
 
-  const W = base*COLS, H = base*ROWS;
-  canvas.style.width=W+'px'; canvas.style.height=H+'px';
-  canvas.width=W; canvas.height=H;
+  const w=base*COLS;
+  const h=base*ROWS;
 
-  cellW = W/COLS; cellH = H/ROWS;
-  ctx.imageSmoothingEnabled = false;
+  canvas.style.width=w+"px";
+  canvas.style.height=h+"px";
+  canvas.width=w;
+  canvas.height=h;
+
+  cellW=w/COLS;
+  cellH=h/ROWS;
+
   draw();
 }
 
+/* ========= DRAW ========= */
 function draw(){
-  ctx.fillStyle='#222';
+  ctx.fillStyle="#222";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
   for(let y=0;y<ROWS;y++){
@@ -212,59 +181,60 @@ function draw(){
 function drawCell(x,y,color){
   if(y<0) return;
   ctx.fillStyle=color;
-  ctx.fillRect(x*cellW+1,y*cellH+1,cellW-2,cellH-2);
+  ctx.fillRect(
+    x*cellW+1, y*cellH+1,
+    cellW-2, cellH-2
+  );
 }
 
-/* ========= COLLISION ========= */
-function collide(arena,pl){
-  const m=pl.matrix,o=pl.pos;
+/* ========= COLLISIONS ========= */
+function collide(arena,player){
+  const m=player.matrix,o=player.pos;
   for(let y=0;y<m.length;y++){
     for(let x=0;x<m[y].length;x++){
-      if(m[y][x] &&
-        (o.y+y>=ROWS || o.x+x<0 || o.x+x>=COLS || arena[o.y+y][o.x+x])){
-          return true;
-      }
+      if(!m[y][x]) continue;
+      const ax=x+o.x, ay=y+o.y;
+      if(ay>=ROWS || ax<0 || ax>=COLS) return true;
+      if(ay>=0 && arena[ay][ax]!=0) return true;
     }
   }
   return false;
 }
 
-/* ========= MERGE + SCORE ========= */
 function mergePlayer(){
   player.matrix.forEach((row,y)=>{
     row.forEach((v,x)=>{
-      if(v && player.pos.y+y>=0) arena[player.pos.y+y][player.pos.x+x]=v;
+      if(v && player.pos.y+y>=0){
+        arena[player.pos.y+y][player.pos.x+x]=v;
+      }
     });
   });
 }
 
+/* ========= LINES ========= */
 function sweep(){
   let lines=0;
-  outer: for(let y=ROWS-1;y>=0;y--){
-    for(let x=0;x<COLS;x++){
-      if(!arena[y][x]) continue outer;
+  for(let y=ROWS-1;y>=0;y--){
+    if(arena[y].every(v=>v!=0)){
+      arena.splice(y,1);
+      arena.unshift(new Array(COLS).fill(0));
+      lines++;y++;
     }
-    arena.splice(y,1);
-    arena.unshift(Array(COLS).fill(0));
-    lines++;
-    y++;
   }
-  if(lines){
-    player.score+=lines*10;
-    scoreEl.textContent="Score: "+player.score;
-  }
+  if(lines) player.score+=lines*10;
+  updateScore();
 }
 
 /* ========= PLAYER ========= */
 function playerReset(){
   player.matrix=createPiece(randPiece());
-  player.pos.x=Math.floor(COLS/2 - player.matrix[0].length/2);
+  player.pos.x=Math.floor((COLS - player.matrix[0].length)/2);
   player.pos.y=-2;
 
   if(collide(arena,player)){
     arena=createMatrix(COLS,ROWS);
     player.score=0;
-    scoreEl.textContent="Score: 0";
+    updateScore();
   }
 }
 
@@ -285,131 +255,105 @@ function playerMove(d){
 }
 
 function rotateMatrix(m){
-  for(let y=0;y<m.length;y++)
-    for(let x=0;x<y;x++)
-      [m[x][y], m[y][x]]=[m[y][x],m[x][y]];
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<y;x++){
+      [m[x][y],m[y][x]]=[m[y][x],m[x][y]];
+    }
+  }
   m.forEach(r=>r.reverse());
 }
 
 function playerRotate(){
-  const clone=player.matrix.map(r=>r.slice());
+  const copy=player.matrix.map(r=>r.slice());
   rotateMatrix(player.matrix);
+
   const kicks=[0,-1,1,-2,2];
-  const oldX=player.pos.x;
-  for(let k of kicks){
-    player.pos.x=oldX+k;
+  for(const k of kicks){
+    player.pos.x+=k;
     if(!collide(arena,player)) return;
+    player.pos.x-=k;
   }
-  player.matrix=clone;
-  player.pos.x=oldX;
+  player.matrix=copy;
 }
 
 /* ========= GAME LOOP ========= */
-function update(time=0){
-  if(!running || paused || ended) return;
+function update(t=0){
+  if(!running) return;  // ADDED: pause system
 
-  const delta=time-lastTime;
-  lastTime=time;
-
+  const delta=t-lastTime;
+  lastTime=t;
   dropCounter+=delta;
+
   if(dropCounter>dropInterval) playerDrop();
 
   draw();
   requestAnimationFrame(update);
 }
 
-/* ========= GAME CONTROL FUNCTIONS ========= */
-function startGame(){
-  if(ended) return; // must restart if ended
-  if(running) return;
-
-  running=true;
-  paused=false;
-  lastTime=performance.now();
-  requestAnimationFrame(update);
+/* ========= SCORE ========= */
+function updateScore(){
+  scoreEl.textContent="Score: "+player.score;
 }
 
-function pauseGame(){
-  if(!running || ended) return;
-  paused=!paused;
-  pauseBtn.textContent = paused ? "Resume" : "Pause";
-  if(!paused) requestAnimationFrame(update);
-}
-
-function endGame(){
-  ended=true;
-  running=false;
-  paused=false;
-  pauseBtn.textContent="Pause";
-}
-
-function restartGame(){
-  arena=createMatrix(COLS,ROWS);
-  player={pos:{x:0,y:0},matrix:null,score:0};
-  scoreEl.textContent="Score: 0";
-  dropCounter=0;
-  ended=false;
-  paused=false;
-  running=false;
-  pauseBtn.textContent="Pause";
-  playerReset();
-  draw();
-}
-
-/* ========= INPUTS ========= */
-function bindButton(id,fn){
+/* ========= BUTTONS ========= */
+function bindBtn(id,fn){
   const el=document.getElementById(id);
-  el.addEventListener('touchstart',e=>{e.preventDefault();fn();},{passive:false});
-  el.addEventListener('mousedown',e=>{e.preventDefault();fn();});
+  el.addEventListener("touchstart", e=>{e.preventDefault();fn();}, {passive:false});
+  el.addEventListener("mousedown", e=>{e.preventDefault();fn();});
 }
-bindButton('left',()=>playerMove(-1));
-bindButton('right',()=>playerMove(1));
-bindButton('down',()=>playerDrop());
-bindButton('rotate',()=>playerRotate());
 
-window.addEventListener('keydown',e=>{
-  if(!running || paused) return;
-  switch(e.code){
-    case 'ArrowLeft': playerMove(-1); break;
-    case 'ArrowRight': playerMove(1); break;
-    case 'ArrowDown': playerDrop(); break;
-    case 'ArrowUp': playerRotate(); break;
-    case 'Enter': hardDrop(); break;
+bindBtn("left", ()=>playerMove(-1));
+bindBtn("right", ()=>playerMove(1));
+bindBtn("down", ()=>playerDrop());
+bindBtn("rotate", ()=>playerRotate());
+
+/* ========= GAME MENU BUTTONS ========= */
+document.getElementById("startBtn").onclick=function(){
+  if(!running){
+    running=true;
+    lastTime=performance.now();
+    requestAnimationFrame(update);
   }
-});
+};
 
-function hardDrop(){
-  while(!collide(arena,player)) player.pos.y++;
-  player.pos.y--;
-  mergePlayer(); sweep(); playerReset();
-}
+document.getElementById("pauseBtn").onclick=function(){
+  running=false;
+};
 
-/* BUTTON WIRING */
-startBtn.onclick=startGame;
-pauseBtn.onclick=pauseGame;
-restartBtn.onclick=restartGame;
-endBtn.onclick=endGame;
+document.getElementById("resumeBtn").onclick=function(){
+  if(!running){
+    running=true;
+    lastTime=performance.now();
+    requestAnimationFrame(update);
+  }
+};
+
+document.getElementById("restartBtn").onclick=function(){
+  init();
+  running=true;
+};
+
+document.getElementById("endBtn").onclick=function(){
+  running=false;
+};
 
 /* ========= INIT ========= */
 function init(){
   arena=createMatrix(COLS,ROWS);
   player={pos:{x:0,y:0},matrix:null,score:0};
   playerReset();
+  updateScore();
   resizeCanvas();
-  draw();
 }
 
-let resizeId=null;
-window.addEventListener('resize',()=>{
-  clearTimeout(resizeId);
-  resizeId=setTimeout(resizeCanvas,80);
-});
+window.addEventListener("resize", ()=>setTimeout(resizeCanvas,120));
 
-document.addEventListener('touchstart',e=>{
+document.addEventListener("touchstart", e=>{
   if(e.touches.length>1) e.preventDefault();
 },{passive:false});
 
 init();
+
 </script>
 </body>
 </html>
