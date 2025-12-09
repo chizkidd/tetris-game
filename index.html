@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Updated viewport: Removed maximum-scale and user-scalable for better touch reliability -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HTML5 Tetris</title>
     <style>
         body {
@@ -16,7 +17,10 @@
             justify-content: center;
             height: 100vh;
             overflow: hidden;
-            touch-action: none; /* Prevent browser zooming/scrolling */
+            /* touch-action: none is necessary to prevent scrolling/zooming/pull-to-refresh
+               if controls are near the edge, but it can be aggressive. We'll keep it for now
+               as it's standard for preventing browser interference in games. */
+            touch-action: none; 
         }
 
         #game-container {
@@ -165,6 +169,16 @@
 
         // --- The Tetrominoes (Shapes) ---
         // Defined as matrices where 1 is part of the piece
+        // We define the shapes as their matrices directly, not as functions returning them.
+        const Z = [[1,1,0],[0,1,1],[0,0,0]];
+        const S = [[0,1,1],[1,1,0],[0,0,0]];
+        const T = [[0,1,0],[1,1,1],[0,0,0]];
+        const O = [[1,1],[1,1]];
+        const L = [[0,0,1],[1,1,1],[0,0,0]];
+        const I = [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
+        const J = [[1,0,0],[1,1,1],[0,0,0]];
+
+        // The pieces array now uses the matrix directly
         const PIECES = [
             [Z, "#ff0055"],
             [S, "#00ff99"],
@@ -174,15 +188,6 @@
             [I, "#00f0ff"],
             [J, "#0055ff"]
         ];
-
-        // Shape Definitions
-        function Z() { return [[[1,1,0],[0,1,1],[0,0,0]]]; }
-        function S() { return [[[0,1,1],[1,1,0],[0,0,0]]]; }
-        function T() { return [[[0,1,0],[1,1,1],[0,0,0]]]; }
-        function O() { return [[[1,1],[1,1]]]; }
-        function L() { return [[[0,0,1],[1,1,1],[0,0,0]]]; }
-        function I() { return [[[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]]]; }
-        function J() { return [[[1,0,0],[1,1,1],[0,0,0]]]; }
 
         // --- Game State Variables ---
         let board = [];
@@ -213,9 +218,12 @@
             canvas.width = SQ * COL;
             canvas.height = SQ * ROW;
             
-            // Redraw if game isn't running to show grid
-            if (!gameRunning && !gameOver) {
+            // Redraw if the game is running or if we are on the start screen
+            if (gameRunning || !startScreen.classList.contains('hidden')) {
                 drawBoard();
+                if(p) p.draw();
+            } else if (!gameOver) {
+                 drawBoard(); // Draw grid on initial load
             }
         }
         window.addEventListener('resize', resizeGame);
@@ -236,6 +244,9 @@
 
         // Draw a single square
         function drawSquare(x, y, color){
+            // Only draw if within board boundaries
+            if (x < 0 || x >= COL || y < 0 || y >= ROW) return;
+
             context.fillStyle = color;
             context.fillRect(x*SQ, y*SQ, SQ, SQ);
 
@@ -265,22 +276,11 @@
 
         // The Piece Class
         class Piece {
-            constructor(tetromino, color){
-                this.tetromino = tetromino; // The shape function
-                this.tetrominoN = 0; // Rotation index
-                this.activeTetromino = this.tetromino()[this.tetrominoN] || this.tetromino();
-                if (Array.isArray(this.activeTetromino[0]) && Array.isArray(this.activeTetromino[0][0])) {
-                     // Handle weird nesting if strict mode causes issues, though standard logic above usually works
-                     // This is a safety fallback for shape definitions
-                     this.activeTetromino = this.activeTetromino[0]; 
-                }
-                
-                // Correction for the array shape structure
-                // We passed a function returning [matrix], so we need the matrix
-                this.matrix = this.tetromino()[0]; 
-                
+            // Updated constructor to take the pre-defined matrix directly
+            constructor(matrix, color){
+                this.matrix = JSON.parse(JSON.stringify(matrix)); // Deep copy the matrix for rotation
                 this.color = color;
-                this.x = 3;
+                this.x = Math.floor((COL - this.matrix[0].length) / 2); // Center the piece horizontally
                 this.y = -2; // Start slightly above board
             }
 
@@ -341,7 +341,7 @@
                 // Transpose + Reverse to rotate matrix
                 let nextPattern = this.matrix[0].map((val, index) => this.matrix.map(row => row[index]).reverse());
                 
-                // Wall kick (basic): if rotation puts us in a wall, don't rotate
+                // Wall kick (basic): check if rotation is possible
                 let kick = 0;
                 
                 if(this.collision(0, 0, nextPattern)){
@@ -375,17 +375,17 @@
                         let newX = this.x + c + x;
                         let newY = this.y + r + y;
                         
-                        // Conditions
+                        // 1. Check if hit walls/floor
                         if(newX < 0 || newX >= COL || newY >= ROW){
                             return true;
                         }
                         
-                        // Skip checking negative Y (above board)
+                        // 2. Skip checking negative Y (above board)
                         if(newY < 0){
                             continue;
                         }
                         
-                        // Check if there is a locked piece on the board
+                        // 3. Check if hit locked piece
                         if(board[newY][newX] != VACANT){
                             return true;
                         }
@@ -425,7 +425,7 @@
                     if(isRowFull){
                         rowsCleared++;
                         // Move all rows above down
-                        for(let y = r; y > 1; y--){
+                        for(let y = r; y > 0; y--){ // Start from r and go up to row 1
                             for(let c = 0; c < COL; c++){
                                 board[y][c] = board[y-1][c];
                             }
@@ -434,6 +434,8 @@
                         for(let c = 0; c < COL; c++){
                             board[0][c] = VACANT;
                         }
+                        // Re-check the current row 'r' in case multiple rows were cleared
+                        r--; 
                     }
                 }
                 
@@ -474,15 +476,23 @@
         }
 
         function startGame() {
+            // Hide screens and reset state
             startScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
+            
+            // Reset game data
             createBoard();
             drawBoard();
             score = 0;
             scoreElement.innerText = score;
             gameRunning = true;
             gameOver = false;
+            
+            // Generate and draw the first piece immediately
             p = randomPiece();
+            p.draw(); 
+            
+            // Start the drop loop
             dropStart = Date.now();
             drop();
         }
@@ -508,32 +518,34 @@
         document.addEventListener("keydown", function(event){
             if(!gameRunning) return;
             
-            if(event.keyCode == 37){
+            // Use event.key for better semantic handling, but keep keyCode for broader compatibility
+            if(event.key === 'ArrowLeft' || event.keyCode == 37){
                 p.moveLeft();
-            }else if(event.keyCode == 38){
+            }else if(event.key === 'ArrowUp' || event.keyCode == 38){
                 p.rotate();
-                // prevent scrolling
                 event.preventDefault(); 
-            }else if(event.keyCode == 39){
+            }else if(event.key === 'ArrowRight' || event.keyCode == 39){
                 p.moveRight();
-            }else if(event.keyCode == 40){
-                p.moveDown();
-                // prevent scrolling
-                event.preventDefault();
+            }else if(event.key === 'ArrowDown' || event.keyCode == 40){
+                // Using event.key === 'ArrowDown' is generally safer than keyCode
+                if (event.key === 'ArrowDown' || event.keyCode == 40) {
+                     p.moveDown();
+                     event.preventDefault();
+                }
             }
         });
 
         // Touch / Mouse for On-Screen Buttons
         const setupBtn = (id, action) => {
             const btn = document.getElementById(id);
-            // Handle both click and touch to be safe
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault(); // prevent zoom/scroll
+            // Unified handler for touch and mouse
+            const handler = (e) => {
+                if (e.cancelable) e.preventDefault();
                 if(gameRunning) action();
-            });
-            btn.addEventListener('mousedown', (e) => {
-                if(gameRunning) action();
-            });
+            };
+            
+            btn.addEventListener('touchstart', handler);
+            btn.addEventListener('mousedown', handler);
         };
 
         setupBtn('btn-left', () => p.moveLeft());
@@ -546,7 +558,11 @@
         
         const startDown = (e) => {
             if(e.cancelable) e.preventDefault();
-            if(!gameRunning) return;
+            if(!gameRunning || gameOver) return;
+            
+            // Clear any existing interval to prevent runaway drops
+            if (downInterval) clearInterval(downInterval); 
+            
             p.moveDown(); // Move once immediately
             downInterval = setInterval(() => {
                 if(gameRunning && !gameOver) p.moveDown();
@@ -554,12 +570,15 @@
         }
         
         const stopDown = (e) => {
-            if(e.cancelable) e.preventDefault();
+             // We only clear the interval; no need for default prevention on end
+            if (e.cancelable) e.preventDefault();
             clearInterval(downInterval);
+            downInterval = null; // Mark as cleared
         }
 
-        downBtn.addEventListener('touchstart', startDown);
-        downBtn.addEventListener('touchend', stopDown);
+        // Use passive: false for touch events related to controls to ensure preventDefault works
+        downBtn.addEventListener('touchstart', startDown, { passive: false });
+        downBtn.addEventListener('touchend', stopDown, { passive: false });
         downBtn.addEventListener('mousedown', startDown);
         downBtn.addEventListener('mouseup', stopDown);
         downBtn.addEventListener('mouseleave', stopDown);
