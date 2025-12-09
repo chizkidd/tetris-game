@@ -1,593 +1,230 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <!-- Updated viewport: Removed maximum-scale and user-scalable for better touch reliability -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML5 Tetris</title>
-    <style>
-        body {
-            background-color: #202028;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-            /* touch-action: none is necessary to prevent scrolling/zooming/pull-to-refresh
-               if controls are near the edge, but it can be aggressive. We'll keep it for now
-               as it's standard for preventing browser interference in games. */
-            touch-action: none; 
-        }
+<meta charset="UTF-8" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Tetris Mobile</title>
 
-        #game-container {
-            position: relative;
-            border: 2px solid #333;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
+<style>
+    body {
+        margin: 0;
+        background: #111;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: Arial, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+    }
 
-        canvas {
-            display: block;
-            background-color: #000;
-        }
+    #game {
+        background: #222;
+        margin-top: 10px;
+    }
 
-        /* UI Overlays */
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 10;
-        }
+    /* Mobile buttons */
+    .controls {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+    }
 
-        .hidden { display: none !important; }
+    .btn {
+        background: #444;
+        border: 1px solid #888;
+        border-radius: 10px;
+        padding: 18px 22px;
+        font-size: 20px;
+        color: white;
+        text-align: center;
+        width: 70px;
+        touch-action: manipulation;
+    }
 
-        h1 { margin: 0 0 20px 0; font-size: 40px; text-transform: uppercase; letter-spacing: 2px; color: #00f0ff; text-shadow: 0 0 10px #00f0ff; }
-        p { font-size: 18px; margin-bottom: 30px; color: #ccc; }
-        
-        button {
-            background: #00f0ff;
-            color: #000;
-            border: none;
-            padding: 15px 40px;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 5px;
-            text-transform: uppercase;
-            box-shadow: 0 0 10px #00f0ff;
-            transition: transform 0.1s;
-        }
-        button:active { transform: scale(0.95); }
-
-        /* Score Display */
-        #score-board {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            text-align: right;
-            pointer-events: none;
-        }
-        .score-label { font-size: 12px; color: #888; }
-        .score-val { font-size: 24px; font-weight: bold; color: #fff; }
-
-        /* Mobile Controls */
-        #mobile-controls {
-            display: none; /* Hidden on desktop by default, shown via JS if touch detected */
-            width: 100%;
-            max-width: 400px;
-            margin-top: 20px;
-            justify-content: space-between;
-            padding: 0 20px;
-            box-sizing: border-box;
-        }
-
-        .control-btn {
-            width: 60px;
-            height: 60px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            user-select: none;
-        }
-        .control-btn:active { background: rgba(255, 255, 255, 0.3); }
-        .d-pad { display: flex; gap: 10px; }
-        .action-pad { display: flex; gap: 10px; }
-
-        /* Show mobile controls on small screens */
-        @media (max-height: 800px), (max-width: 600px) {
-            #mobile-controls { display: flex; }
-        }
-    </style>
+    .btn:active {
+        background: #666;
+    }
+</style>
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="tetris" width="240" height="400"></canvas>
-        
-        <div id="score-board">
-            <div class="score-label">SCORE</div>
-            <div id="score" class="score-val">0</div>
-            <div class="score-label" style="margin-top: 10px;">HIGH SCORE</div>
-            <div id="high-score" class="score-val">0</div>
-        </div>
+<canvas id="game" width="240" height="480"></canvas>
 
-        <!-- Start Screen -->
-        <div id="start-screen" class="overlay">
-            <h1>TETRIS</h1>
-            <p>Arrow Keys or Buttons to Move</p>
-            <button onclick="startGame()">Play</button>
-        </div>
+<div class="controls">
+    <div class="btn" id="left">←</div>
+    <div class="btn" id="rotate">⟳</div>
+    <div class="btn" id="right">→</div>
+    <div class="btn" id="down">↓</div>
+</div>
 
-        <!-- Game Over Screen -->
-        <div id="game-over-screen" class="overlay hidden">
-            <h1 style="color: #ff0055; text-shadow: 0 0 10px #ff0055;">Game Over</h1>
-            <p>Final Score: <span id="final-score">0</span></p>
-            <button onclick="resetGame()">Try Again</button>
-        </div>
-    </div>
+<script>
+// ------------------------
+// Canvas + Game Settings
+// ------------------------
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    <!-- On-screen controls for mobile -->
-    <div id="mobile-controls">
-        <div class="d-pad">
-            <div class="control-btn" id="btn-left">←</div>
-            <div class="control-btn" id="btn-down">↓</div>
-            <div class="control-btn" id="btn-right">→</div>
-        </div>
-        <div class="action-pad">
-            <div class="control-btn" id="btn-rotate" style="border-color: #00f0ff; color: #00f0ff;">↻</div>
-        </div>
-    </div>
+const COLS = 10;
+const ROWS = 20;
+const BLOCK = 24;
 
-    <script>
-        const canvas = document.getElementById('tetris');
-        const context = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        const highScoreElement = document.getElementById('high-score');
-        const finalScoreElement = document.getElementById('final-score');
-        const startScreen = document.getElementById('start-screen');
-        const gameOverScreen = document.getElementById('game-over-screen');
+// Auto-resize for iPhone safely
+function resizeCanvas() {
+    const scale = Math.min(
+        window.innerWidth / canvas.width,
+        (window.innerHeight - 120) / canvas.height
+    );
+    canvas.style.transform = `scale(${scale})`;
+}
+resizeCanvas();
+window.onresize = resizeCanvas;
 
-        // --- Game Constants ---
-        const ROW = 20;
-        const COL = 10;
-        let SQ = 20; // Initial square size, will be calculated dynamically
-        const VACANT = "#111"; // Empty square color
+// ------------------------
+// Game Logic
+// ------------------------
+function emptyBoard() {
+    return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+}
+let board = emptyBoard();
 
-        // --- The Tetrominoes (Shapes) ---
-        // Defined as matrices where 1 is part of the piece
-        // We define the shapes as their matrices directly, not as functions returning them.
-        const Z = [[1,1,0],[0,1,1],[0,0,0]];
-        const S = [[0,1,1],[1,1,0],[0,0,0]];
-        const T = [[0,1,0],[1,1,1],[0,0,0]];
-        const O = [[1,1],[1,1]];
-        const L = [[0,0,1],[1,1,1],[0,0,0]];
-        const I = [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
-        const J = [[1,0,0],[1,1,1],[0,0,0]];
+const pieces = "IJLOSTZ";
+const colors = {
+    I: "cyan", J: "blue", L: "orange", O: "yellow",
+    S: "green", T: "purple", Z: "red"
+};
+const shapes = {
+    I: [[1,1,1,1]],
+    J: [[1,0,0],[1,1,1]],
+    L: [[0,0,1],[1,1,1]],
+    O: [[1,1],[1,1]],
+    S: [[0,1,1],[1,1,0]],
+    T: [[0,1,0],[1,1,1]],
+    Z: [[1,1,0],[0,1,1]]
+};
 
-        // The pieces array now uses the matrix directly
-        const PIECES = [
-            [Z, "#ff0055"],
-            [S, "#00ff99"],
-            [T, "#bf00ff"],
-            [O, "#ffff00"],
-            [L, "#ffaa00"],
-            [I, "#00f0ff"],
-            [J, "#0055ff"]
-        ];
+class Piece {
+    constructor(type) {
+        this.type = type;
+        this.shape = shapes[type];
+        this.color = colors[type];
+        this.x = 3;
+        this.y = 0;
+    }
+}
 
-        // --- Game State Variables ---
-        let board = [];
-        let score = 0;
-        let highScore = localStorage.getItem('tetris_highscore') || 0;
-        let gameRunning = false;
-        let dropStart = Date.now();
-        let gameOver = false;
-        let p; // The current piece
+let current = new Piece(randomPiece());
 
-        highScoreElement.innerText = highScore;
+function randomPiece() {
+    return pieces[Math.floor(Math.random() * pieces.length)];
+}
 
-        // --- Responsive Canvas ---
-        function resizeGame() {
-            // Calculate square size based on viewport height to fit the game
-            // We want the game to take up about 70-80% of the screen height
-            const availableHeight = window.innerHeight * 0.8;
-            const availableWidth = window.innerWidth * 0.9;
-            
-            // SQ = available height / 20 rows
-            SQ = Math.floor(availableHeight / ROW);
-            
-            // Ensure it fits width-wise too
-            if (SQ * COL > availableWidth) {
-                SQ = Math.floor(availableWidth / COL);
-            }
+function drawBlock(x, y, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * BLOCK, y * BLOCK, BLOCK - 1, BLOCK - 1);
+}
 
-            canvas.width = SQ * COL;
-            canvas.height = SQ * ROW;
-            
-            // Redraw if the game is running or if we are on the start screen
-            if (gameRunning || !startScreen.classList.contains('hidden')) {
-                drawBoard();
-                if(p) p.draw();
-            } else if (!gameOver) {
-                 drawBoard(); // Draw grid on initial load
-            }
-        }
-        window.addEventListener('resize', resizeGame);
-        resizeGame(); // Initial call
-
-        // --- Core Functions ---
-
-        // Initialize board
-        function createBoard() {
-            board = [];
-            for(let r = 0; r < ROW; r++){
-                board[r] = [];
-                for(let c = 0; c < COL; c++){
-                    board[r][c] = VACANT;
-                }
-            }
-        }
-
-        // Draw a single square
-        function drawSquare(x, y, color){
-            // Only draw if within board boundaries
-            if (x < 0 || x >= COL || y < 0 || y >= ROW) return;
-
-            context.fillStyle = color;
-            context.fillRect(x*SQ, y*SQ, SQ, SQ);
-
-            // Add a bevel effect
-            if (color !== VACANT) {
-                context.strokeStyle = "rgba(0,0,0,0.3)";
-                context.lineWidth = 2;
-                context.strokeRect(x*SQ, y*SQ, SQ, SQ);
-                
-                // Shine
-                context.fillStyle = "rgba(255,255,255,0.1)";
-                context.fillRect(x*SQ, y*SQ, SQ, SQ/2);
-            } else {
-                context.strokeStyle = "#222"; // Grid lines
-                context.strokeRect(x*SQ, y*SQ, SQ, SQ);
-            }
-        }
-
-        // Draw the board
-        function drawBoard(){
-            for(let r = 0; r < ROW; r++){
-                for(let c = 0; c < COL; c++){
-                    drawSquare(c, r, board[r][c]);
-                }
-            }
-        }
-
-        // The Piece Class
-        class Piece {
-            // Updated constructor to take the pre-defined matrix directly
-            constructor(matrix, color){
-                this.matrix = JSON.parse(JSON.stringify(matrix)); // Deep copy the matrix for rotation
-                this.color = color;
-                this.x = Math.floor((COL - this.matrix[0].length) / 2); // Center the piece horizontally
-                this.y = -2; // Start slightly above board
-            }
-
-            // Fill function
-            fill(color){
-                for(let r = 0; r < this.matrix.length; r++){
-                    for(let c = 0; c < this.matrix.length; c++){
-                        if(this.matrix[r][c]){
-                            drawSquare(this.x + c, this.y + r, color);
-                        }
-                    }
-                }
-            }
-
-            // Draw piece
-            draw(){
-                this.fill(this.color);
-            }
-
-            // Undraw piece
-            unDraw(){
-                this.fill(VACANT);
-            }
-
-            // Move Down
-            moveDown(){
-                if(!this.collision(0, 1, this.matrix)){
-                    this.unDraw();
-                    this.y++;
-                    this.draw();
-                } else {
-                    // We hit something, lock piece and generate new one
-                    this.lock();
-                    if (!gameOver) p = randomPiece();
-                }
-            }
-
-            // Move Right
-            moveRight(){
-                if(!this.collision(1, 0, this.matrix)){
-                    this.unDraw();
-                    this.x++;
-                    this.draw();
-                }
-            }
-
-            // Move Left
-            moveLeft(){
-                if(!this.collision(-1, 0, this.matrix)){
-                    this.unDraw();
-                    this.x--;
-                    this.draw();
-                }
-            }
-
-            // Rotate
-            rotate(){
-                // Transpose + Reverse to rotate matrix
-                let nextPattern = this.matrix[0].map((val, index) => this.matrix.map(row => row[index]).reverse());
-                
-                // Wall kick (basic): check if rotation is possible
-                let kick = 0;
-                
-                if(this.collision(0, 0, nextPattern)){
-                    if(this.x > COL/2){
-                        // Try moving left
-                        kick = -1; 
-                    } else {
-                        // Try moving right
-                        kick = 1;
-                    }
-                }
-                
-                if(!this.collision(kick, 0, nextPattern)){
-                    this.unDraw();
-                    this.x += kick;
-                    this.matrix = nextPattern;
-                    this.draw();
-                }
-            }
-
-            // Collision Detection
-            collision(x, y, piece){
-                for(let r = 0; r < piece.length; r++){
-                    for(let c = 0; c < piece.length; c++){
-                        // if the square is empty, we skip it
-                        if(!piece[r][c]){
-                            continue;
-                        }
-                        
-                        // coordinates of the piece after movement
-                        let newX = this.x + c + x;
-                        let newY = this.y + r + y;
-                        
-                        // 1. Check if hit walls/floor
-                        if(newX < 0 || newX >= COL || newY >= ROW){
-                            return true;
-                        }
-                        
-                        // 2. Skip checking negative Y (above board)
-                        if(newY < 0){
-                            continue;
-                        }
-                        
-                        // 3. Check if hit locked piece
-                        if(board[newY][newX] != VACANT){
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-
-            // Lock Piece
-            lock(){
-                for(let r = 0; r < this.matrix.length; r++){
-                    for(let c = 0; c < this.matrix.length; c++){
-                        if(!this.matrix[r][c]){
-                            continue;
-                        }
-                        // pieces to lock on top = game over
-                        if(this.y + r < 0){
-                            gameOver = true;
-                            endGame();
-                            return; // Stop processing
-                        }
-                        // Lock the piece
-                        board[this.y + r][this.x + c] = this.color;
-                    }
-                }
-                
-                // Remove full rows
-                let rowsCleared = 0;
-                for(let r = 0; r < ROW; r++){
-                    let isRowFull = true;
-                    for(let c = 0; c < COL; c++){
-                        if(board[r][c] == VACANT) { 
-                            isRowFull = false;
-                            break;
-                        }
-                    }
-                    if(isRowFull){
-                        rowsCleared++;
-                        // Move all rows above down
-                        for(let y = r; y > 0; y--){ // Start from r and go up to row 1
-                            for(let c = 0; c < COL; c++){
-                                board[y][c] = board[y-1][c];
-                            }
-                        }
-                        // Top row is now empty
-                        for(let c = 0; c < COL; c++){
-                            board[0][c] = VACANT;
-                        }
-                        // Re-check the current row 'r' in case multiple rows were cleared
-                        r--; 
-                    }
-                }
-                
-                // Scoring: 10, 30, 60, 100 based on lines
-                if (rowsCleared > 0) {
-                    const points = [0, 10, 30, 60, 100];
-                    score += points[rowsCleared] || 100;
-                    scoreElement.innerText = score;
-                }
-
-                drawBoard();
-            }
-        }
-
-        // Generate Random Piece
-        function randomPiece(){
-            let r = Math.floor(Math.random() * PIECES.length);
-            return new Piece(PIECES[r][0], PIECES[r][1]);
-        }
-
-        // --- Game Control ---
-
-        function drop(){
-            if(gameOver || !gameRunning) return;
-            
-            let now = Date.now();
-            let delta = now - dropStart;
-            
-            // Speed increases slightly as score goes up (simple curve)
-            let speed = Math.max(200, 1000 - (score * 2));
-            
-            if(delta > speed){
-                p.moveDown();
-                dropStart = Date.now();
-            }
-            
-            requestAnimationFrame(drop);
-        }
-
-        function startGame() {
-            // Hide screens and reset state
-            startScreen.classList.add('hidden');
-            gameOverScreen.classList.add('hidden');
-            
-            // Reset game data
-            createBoard();
-            drawBoard();
-            score = 0;
-            scoreElement.innerText = score;
-            gameRunning = true;
-            gameOver = false;
-            
-            // Generate and draw the first piece immediately
-            p = randomPiece();
-            p.draw(); 
-            
-            // Start the drop loop
-            dropStart = Date.now();
-            drop();
-        }
-
-        function resetGame() {
-            startGame();
-        }
-
-        function endGame() {
-            gameRunning = false;
-            finalScoreElement.innerText = score;
-            if(score > highScore) {
-                highScore = score;
-                localStorage.setItem('tetris_highscore', highScore);
-                highScoreElement.innerText = highScore;
-            }
-            gameOverScreen.classList.remove('hidden');
-        }
-
-        // --- Inputs ---
-
-        // Keyboard
-        document.addEventListener("keydown", function(event){
-            if(!gameRunning) return;
-            
-            // Use event.key for better semantic handling, but keep keyCode for broader compatibility
-            if(event.key === 'ArrowLeft' || event.keyCode == 37){
-                p.moveLeft();
-            }else if(event.key === 'ArrowUp' || event.keyCode == 38){
-                p.rotate();
-                event.preventDefault(); 
-            }else if(event.key === 'ArrowRight' || event.keyCode == 39){
-                p.moveRight();
-            }else if(event.key === 'ArrowDown' || event.keyCode == 40){
-                // Using event.key === 'ArrowDown' is generally safer than keyCode
-                if (event.key === 'ArrowDown' || event.keyCode == 40) {
-                     p.moveDown();
-                     event.preventDefault();
-                }
-            }
+function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    board.forEach((row, y) => {
+        row.forEach((cell, x) => {
+            if (cell) drawBlock(x, y, cell);
         });
+    });
+    current.shape.forEach((row, dy) => {
+        row.forEach((val, dx) => {
+            if (val) drawBlock(current.x + dx, current.y + dy, current.color);
+        });
+    });
+}
 
-        // Touch / Mouse for On-Screen Buttons
-        const setupBtn = (id, action) => {
-            const btn = document.getElementById(id);
-            // Unified handler for touch and mouse
-            const handler = (e) => {
-                if (e.cancelable) e.preventDefault();
-                if(gameRunning) action();
-            };
-            
-            btn.addEventListener('touchstart', handler);
-            btn.addEventListener('mousedown', handler);
-        };
+function collision(x, y, shape) {
+    return shape.some((row, dy) =>
+        row.some((val, dx) => {
+            if (!val) return false;
+            let nx = x + dx;
+            let ny = y + dy;
+            return (
+                ny >= ROWS ||
+                nx < 0 ||
+                nx >= COLS ||
+                (ny >= 0 && board[ny][nx])
+            );
+        })
+    );
+}
 
-        setupBtn('btn-left', () => p.moveLeft());
-        setupBtn('btn-right', () => p.moveRight());
-        setupBtn('btn-rotate', () => p.rotate());
-        
-        // Fast drop for down button
-        const downBtn = document.getElementById('btn-down');
-        let downInterval;
-        
-        const startDown = (e) => {
-            if(e.cancelable) e.preventDefault();
-            if(!gameRunning || gameOver) return;
-            
-            // Clear any existing interval to prevent runaway drops
-            if (downInterval) clearInterval(downInterval); 
-            
-            p.moveDown(); // Move once immediately
-            downInterval = setInterval(() => {
-                if(gameRunning && !gameOver) p.moveDown();
-            }, 100);
+function merge() {
+    current.shape.forEach((row, dy) => {
+        row.forEach((val, dx) => {
+            if (val) board[current.y + dy][current.x + dx] = current.color;
+        });
+    });
+}
+
+function rotate(matrix) {
+    const N = matrix.length;
+    return matrix[0].map((_, i) => matrix.map(r => r[i])).reverse();
+}
+
+function drop() {
+    if (!collision(current.x, current.y + 1, current.shape)) {
+        current.y++;
+    } else {
+        merge();
+        clearLines();
+        current = new Piece(randomPiece());
+        if (collision(current.x, current.y, current.shape)) {
+            board = emptyBoard(); // simple reset
         }
-        
-        const stopDown = (e) => {
-             // We only clear the interval; no need for default prevention on end
-            if (e.cancelable) e.preventDefault();
-            clearInterval(downInterval);
-            downInterval = null; // Mark as cleared
-        }
+    }
+    drawBoard();
+}
 
-        // Use passive: false for touch events related to controls to ensure preventDefault works
-        downBtn.addEventListener('touchstart', startDown, { passive: false });
-        downBtn.addEventListener('touchend', stopDown, { passive: false });
-        downBtn.addEventListener('mousedown', startDown);
-        downBtn.addEventListener('mouseup', stopDown);
-        downBtn.addEventListener('mouseleave', stopDown);
+function clearLines() {
+    board = board.filter(row => row.some(cell => !cell));
+    while (board.length < ROWS) board.unshift(Array(COLS).fill(0));
+}
 
-        // Initial draw
-        createBoard();
-        drawBoard();
+// ------------------------
+// Controls
+// ------------------------
+function moveLeft() {
+    if (!collision(current.x - 1, current.y, current.shape)) current.x--;
+    drawBoard();
+}
+function moveRight() {
+    if (!collision(current.x + 1, current.y, current.shape)) current.x++;
+    drawBoard();
+}
+function rotatePiece() {
+    const newShape = rotate(current.shape);
+    if (!collision(current.x, current.y, newShape)) current.shape = newShape;
+    drawBoard();
+}
+function softDrop() {
+    drop();
+}
 
-    </script>
+// Touch buttons
+document.getElementById("left").ontouchstart = moveLeft;
+document.getElementById("right").ontouchstart = moveRight;
+document.getElementById("rotate").ontouchstart = rotatePiece;
+document.getElementById("down").ontouchstart = softDrop;
+
+// Keyboard (optional)
+document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") moveLeft();
+    if (e.key === "ArrowRight") moveRight();
+    if (e.key === "ArrowUp") rotatePiece();
+    if (e.key === "ArrowDown") softDrop();
+});
+
+// Game Loop
+setInterval(drop, 600);
+drawBoard();
+</script>
+
 </body>
 </html>
-
