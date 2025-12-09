@@ -15,61 +15,44 @@
       font-family: 'Courier New', monospace;
       color: white;
     }
-    h1 {
-      margin: 20px 0 10px;
-      text-shadow: 3px 3px 6px rgba(0,0,0,0.8);
-    }
+    h1 { margin: 30px 0 10px; text-shadow: 3px 3px 6px #000; }
     .controls {
-      margin-bottom: 10px;
-      font-size: 14px;
-      text-align: center;
       background: rgba(0,0,0,0.3);
       padding: 8px 16px;
       border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 15px;
     }
     canvas {
       border: 6px solid #000;
       border-radius: 12px;
       box-shadow: 0 15px 35px rgba(0,0,0,0.8);
       image-rendering: pixelated;
+      background: #000;
     }
-    .footer {
-      margin-top: 20px;
-      font-size: 12px;
-      opacity: 0.8;
-    }
+    .footer { margin-top: 20px; opacity: 0.8; font-size: 13px; }
   </style>
 </head>
 <body>
   <h1>TETRIS</h1>
   <div class="controls">
-    ← → Move • ↓ Soft drop • ↑ Rotate • SPACE Hard drop • P Pause
+    Left Arrow Right Arrow Move • Down Arrow Soft drop • Up Arrow Rotate • SPACE Hard drop • P Pause
   </div>
   <canvas id="canvas" width="240" height="480"></canvas>
   <div class="footer">Made with pygame + pygbag • by chizkidd</div>
 
-  <!-- Official pygbag loader (works on all browsers, no blocking) -->
-  <script defer src="https://pygame-web.github.io/pygbag/pygbag.min.js"></script>
+  <!-- Latest working pygbag version (December 2025) -->
+  <script src="https://pygame-web.github.io/pygbag/0.8.5/pygbag.min.js"></script>
 
   <script>
-    window.addEventListener("load", async () => {
-      const canvas = document.getElementById("canvas");
-      
-      try {
-        await pygbag.run({
-          canvas: canvas,
-          main: "./tetris.py",
-          files: ["./tetris.py"],  // add more if you have assets
-          cdn: "https://pygame-web.github.io/archives/0.8/"
-        });
-        console.log("Tetris loaded!");
-      } catch (e) {
-        console.error("Failed to load:", e);
-        canvas.getContext("2d").fillStyle = "red";
-        canvas.getContext("2d").font = "20px Arial";
-        canvas.getContext("2d").fillText("Load failed - check console", 10, 50);
-      }
-    });
+    // Simple, bullet-proof loader
+    async function main() {
+      await pygbag.main({
+        canvas: document.getElementById("canvas"),
+        entry_point: "tetris.py"   // your file name
+      });
+    }
+    main();
   </script>
 </body>
 </html>
