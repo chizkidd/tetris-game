@@ -1,357 +1,362 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Tetris Mobile</title>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Tetris — Fixed</title>
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        background: #111;
-        font-family: sans-serif;
-        display: flex;
-        flex-direction: column;
-        height: 100dvh; /* FIX FOR iPhone SAFARI */
-        overflow: hidden;
-    }
-
-    #header {
-        color: white;
-        text-align: center;
-        padding: 10px;
-        font-size: 20px;
-        background: #222;
-        z-index: 5;
-    }
-
-    #score {
-        font-size: 18px;
-        margin-top: 4px;
-    }
-
-    #game-container {
-        flex: 1;
-        display: flex;
-        justify-content: center;
-        align-items: flex-start;
-        overflow: hidden;
-        position: relative;
-    }
-
-    canvas {
-        background: #222;
-        touch-action: none; /* REQUIRED FOR SAFARI */
-    }
-
-    #controls {
-        display: flex;
-        justify-content: space-around;
-        background: #222;
-        padding: 10px;
-    }
-
-    button {
-        width: 70px;
-        height: 70px;
-        font-size: 30px;
-        border-radius: 12px;
-        border: none;
-        background: #444;
-        color: white;
-        touch-action: manipulation;
-    }
-
-    button:active {
-        background: #666;
-    }
+  :root{--bg:#111;--panel:#222;--muted:#888}
+  html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto}
+  header{background:var(--panel);padding:12px;text-align:center}
+  h1{margin:0;font-size:20px}
+  #score{margin-top:6px;font-size:15px;color:var(--muted)}
+  #game-wrap{display:flex;flex:1;align-items:flex-start;justify-content:center;padding:12px;box-sizing:border-box}
+  /* container determines max footprint; canvas is sized by JS to maintain exact 12x20 grid mapping */
+  #game-container{width:100%;max-width:420px;height:calc(100dvh - 170px);display:flex;align-items:center;justify-content:center;position:relative}
+  canvas{background:var(--panel);display:block;border-radius:6px;touch-action:none}
+  /* Controls fixed at bottom so mobile thumbs can reach */
+  #controls{position:fixed;left:0;right:0;bottom:8px;display:flex;justify-content:space-around;padding:10px 16px;box-sizing:border-box;gap:12px;background:rgba(0,0,0,0.25)}
+  .btn{width:68px;height:68px;border-radius:12px;border:0;background:#444;color:#fff;font-size:26px;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+  .btn:active{background:#666}
+  /* make sure the browser UI doesn't push content under controls */
+  @media(min-width:900px){
+    #game-container{height:calc(100vh - 160px)}
+    #controls{position:static;margin:12px 0}
+  }
 </style>
 </head>
-
 <body>
 
-<div id="header">
-    <div>TETRIS</div>
-    <div id="score">Score: 0</div>
+<header>
+  <h1>TETRIS</h1>
+  <div id="score">Score: 0</div>
+</header>
+
+<div id="game-wrap">
+  <div id="game-container">
+    <!-- internal pixel canvas size is set at runtime for 12x20 logical cells -->
+    <canvas id="board" role="application" aria-label="Tetris board"></canvas>
+  </div>
 </div>
 
-<div id="game-container">
-    <canvas id="tetris" width="240" height="480"></canvas>
+<div id="controls" aria-hidden="false">
+  <button class="btn" id="left">←</button>
+  <button class="btn" id="rotate">⟳</button>
+  <button class="btn" id="right">→</button>
+  <button class="btn" id="down">↓</button>
 </div>
-
-<div id="controls">
-    <button id="left">←</button>
-    <button id="rotate">⟳</button>
-    <button id="right">→</button>
-    <button id="down">↓</button>
-</div>
-
 
 <script>
-/* -----------------------------
-   TETRIS GAME ENGINE (Simple)
-------------------------------*/
+/* ========= CONFIG ========= */
+const COLS = 12;
+const ROWS = 20;
+const PADDING = 12;            // padding inside #game-container
+const MAX_CANVAS_WIDTH = 420;  // don't blow up too wide on large screens
+const MIN_CELL = 18;          // minimum pixels per cell (keeps buttons reachable)
 
-const canvas = document.getElementById("tetris");
-const ctx = canvas.getContext("2d");
-ctx.scale(20, 20);
+/* ========= DOM ========= */
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d', {alpha:false});
+const scoreEl = document.getElementById('score');
+const container = document.getElementById('game-container');
 
-function arenaSweep() {
-    let rowCount = 1;
-    outer: for (let y = arena.length - 1; y > 0; --y) {
-        for (let x = 0; x < arena[y].length; ++x) {
-            if (arena[y][x] === 0) continue;
-        }
-        const row = arena.splice(y, 1)[0].fill(0);
-        arena.unshift(row);
-        ++y;
-        player.score += rowCount * 10;
-        rowCount *= 2;
-    }
-}
-
-function collide(arena, player) {
-    const [m, o] = [player.matrix, player.pos];
-    for (let y = 0; y < m.length; ++y) {
-        for (let x = 0; x < m[y].length; ++x) {
-            if (
-                m[y][x] !== 0 &&
-                (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0
-            ) {
-                return true;
-            }
-        }
-    }
-}
-
-function createMatrix(w, h) {
-    const matrix = [];
-    while (h--) matrix.push(new Array(w).fill(0));
-    return matrix;
-}
-
-function createPiece(type) {
-    if (type === "T")
-        return [
-            [0, 0, 0],
-            [1, 1, 1],
-            [0, 1, 0],
-        ];
-    if (type === "O") return [
-        [2, 2],
-        [2, 2],
-    ];
-    if (type === "L")
-        return [
-            [0, 3, 0],
-            [0, 3, 0],
-            [0, 3, 3],
-        ];
-    if (type === "J")
-        return [
-            [0, 4, 0],
-            [0, 4, 0],
-            [4, 4, 0],
-        ];
-    if (type === "I")
-        return [
-            [0, 5, 0, 0],
-            [0, 5, 0, 0],
-            [0, 5, 0, 0],
-            [0, 5, 0, 0],
-        ];
-    if (type === "S")
-        return [
-            [0, 6, 6],
-            [6, 6, 0],
-            [0, 0, 0],
-        ];
-    if (type === "Z")
-        return [
-            [7, 7, 0],
-            [0, 7, 7],
-            [0, 0, 0],
-        ];
-}
-
-function drawMatrix(matrix, offset) {
-    matrix.forEach((row, y) => {
-        row.forEach((value, x) => {
-            if (value !== 0) {
-                ctx.fillStyle = colors[value];
-                ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
-            }
-        });
-    });
-}
-
-function draw() {
-    ctx.fillStyle = "#222";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    drawMatrix(arena, { x: 0, y: 0 });
-    drawMatrix(player.matrix, player.pos);
-}
-
-function merge(arena, player) {
-    player.matrix.forEach((row, y) => {
-        row.forEach((value, x) => {
-            if (value !== 0) arena[y + player.pos.y][x + player.pos.x] = value;
-        });
-    });
-}
-
-function playerDrop() {
-    player.pos.y++;
-    if (collide(arena, player)) {
-        player.pos.y--;
-        merge(arena, player);
-        playerReset();
-        arenaSweep();
-        updateScore();
-    }
-    dropCounter = 0;
-}
-
-function playerMove(dir) {
-    player.pos.x += dir;
-    if (collide(arena, player)) player.pos.x -= dir;
-}
-
-function playerReset() {
-    const pieces = "TJLOSZI";
-    player.matrix = createPiece(pieces[(pieces.length * Math.random()) | 0]);
-    player.pos.y = -1;
-    player.pos.x =
-        ((arena[0].length / 2) | 0) - ((player.matrix[0].length / 2) | 0);
-
-    if (collide(arena, player)) {
-        arena.forEach((row) => row.fill(0));
-        player.score = 0;
-        updateScore();
-    }
-}
-
-function updateScore() {
-    document.getElementById("score").innerText = "Score: " + player.score;
-}
-
-function update(time = 0) {
-    const deltaTime = time - lastTime;
-    lastTime = time;
-
-    dropCounter += deltaTime;
-    if (dropCounter > dropInterval) playerDrop();
-
-    draw();
-    requestAnimationFrame(update);
-}
-
-/* ------------- GAME STATE ------------- */
-const colors = [
-    null,
-    "#f1c40f",
-    "#e67e22",
-    "#9b59b6",
-    "#3498db",
-    "#1abc9c",
-    "#e74c3c",
-    "#2ecc71",
-];
-
-const arena = createMatrix(12, 20);
-
-const player = {
-    pos: { x: 0, y: 0 },
-    matrix: null,
-    score: 0,
-};
-
+/* ========= STATE ========= */
+let arena = createMatrix(COLS, ROWS);
+let player = { pos: {x:0,y:0}, matrix: null, score: 0 };
 let dropCounter = 0;
-let dropInterval = 800;
-
+let dropInterval = 700; // ms
 let lastTime = 0;
-playerReset();
-update();
+let running = true;
 
-/* ---------------- Touch Controls ---------------- */
-function bindButton(id, action) {
-    const el = document.getElementById(id);
+/* ========= COLORS ========= */
+const COLORS = [ null, '#f1c40f', '#e67e22', '#9b59b6', '#3498db', '#1abc9c', '#e74c3c', '#2ecc71' ];
 
-    el.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        action();
+/* ========= UTILITIES ========= */
+function createMatrix(w,h){
+  return Array.from({length:h}, ()=>Array(w).fill(0));
+}
+function randPiece(){
+  const pieces = 'ILJOTSZ';
+  return pieces[Math.floor(Math.random()*pieces.length)];
+}
+function createPiece(type){
+  if(type==='T') return [[0,1,0],[1,1,1]];
+  if(type==='O') return [[2,2],[2,2]];
+  if(type==='L') return [[0,0,3],[3,3,3]];
+  if(type==='J') return [[4,0,0],[4,4,4]];
+  if(type==='I') return [[0,5,0,0],[0,5,0,0],[0,5,0,0],[0,5,0,0]];
+  if(type==='S') return [[0,6,6],[6,6,0],[0,0,0]];
+  if(type==='Z') return [[7,7,0],[0,7,7],[0,0,0]];
+}
+
+/* ========= DRAW =========
+   We set canvas.width/height to pixel-perfect values so logical grid -> visual always matches.
+*/
+let cellW = 20, cellH = 20;
+function resizeCanvas(){
+  // compute available area inside container
+  const rect = container.getBoundingClientRect();
+  // prefer full height of container, but cap to width
+  let availH = rect.height - (PADDING*2);
+  let availW = Math.min(rect.width - (PADDING*2), MAX_CANVAS_WIDTH);
+
+  // derive cell size from available area to maintain 12:20 grid
+  const fromHeight = Math.floor(availH / ROWS);
+  const fromWidth = Math.floor(availW / COLS);
+  const base = Math.max(Math.min(fromHeight, fromWidth), MIN_CELL); // clamp to min cell size
+
+  const canvasWidth = base * COLS;
+  const canvasHeight = base * ROWS;
+
+  canvas.style.width = canvasWidth + 'px';
+  canvas.style.height = canvasHeight + 'px';
+
+  // set internal resolution to exact pixel sizes to avoid coordinate mismatch
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+
+  cellW = canvas.width / COLS;
+  cellH = canvas.height / ROWS;
+
+  // ensure rendering uses non-antialiased crisp rects
+  ctx.imageSmoothingEnabled = false;
+  draw(); // redraw immediately
+}
+
+/* draw arena and player */
+function draw(){
+  // clear
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // draw locked blocks
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const v = arena[y][x];
+      if(v){
+        drawCell(x,y,COLORS[v]);
+      } else {
+        // optional grid lines: light subtle strokes
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        // draw thin border to keep tiles visible
+        // (comment out to remove grid)
+        // ctx.strokeRect(x*cellW+0.5, y*cellH+0.5, cellW-1, cellH-1);
+      }
+    }
+  }
+
+  // draw player piece
+  if(player.matrix){
+    for(let y=0;y<player.matrix.length;y++){
+      for(let x=0;x<player.matrix[y].length;x++){
+        if(player.matrix[y][x]){
+          const px = player.pos.x + x;
+          const py = player.pos.y + y;
+          drawCell(px, py, COLORS[player.matrix[y][x]]);
+        }
+      }
+    }
+  }
+}
+
+function drawCell(x,y,color){
+  if(y < 0) return; // parts above visible area are skipped
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x*cellW)+1, Math.round(y*cellH)+1, Math.round(cellW)-2, Math.round(cellH)-2);
+}
+
+/* ========= COLLISION & MERGE ========= */
+function collide(arena, player){
+  const m = player.matrix;
+  const o = player.pos;
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<m[y].length;x++){
+      if(!m[y][x]) continue;
+      const ax = x + o.x;
+      const ay = y + o.y;
+      if(ay >= ROWS) return true;
+      if(ax < 0 || ax >= COLS) return true;
+      if(ay >= 0 && arena[ay][ax] !== 0) return true;
+    }
+  }
+  return false;
+}
+
+function mergePlayer(){
+  player.matrix.forEach((row,y)=>{
+    row.forEach((val,x)=>{
+      if(val && (player.pos.y + y) >=0 ){
+        arena[player.pos.y + y][player.pos.x + x] = val;
+      }
     });
-
-    el.addEventListener("mousedown", action);
+  });
 }
 
-bindButton("left", () => playerMove(-1));
-bindButton("right", () => playerMove(1));
-bindButton("down", playerDrop);
-bindButton("rotate", () => {
-    // simple rotate: transpose + reverse
-    const m = player.matrix;
-    for (let y = 0; y < m.length; ++y) {
-        for (let x = 0; x < y; ++x) {
-            [m[x][y], m[y][x]] = [m[y][x], m[x][y]];
-        }
+/* ========= LINES ========= */
+function sweep(){
+  let lines = 0;
+  outer: for(let y=ROWS-1;y>=0;y--){
+    for(let x=0;x<COLS;x++){
+      if(arena[y][x] === 0) continue outer;
     }
-    m.forEach((row) => row.reverse());
+    // full row found
+    arena.splice(y,1);
+    arena.unshift(new Array(COLS).fill(0));
+    lines++;
+    y++; // recheck same y after shifting rows
+  }
+  if(lines>0){
+    player.score += lines * 10;
+    updateScore();
+  }
+}
+
+/* ========= PLAYER ACTIONS ========= */
+function playerReset(){
+  const type = randPiece();
+  player.matrix = createPiece(type);
+  player.pos.x = Math.floor((COLS - player.matrix[0].length)/2);
+  player.pos.y = -2; // spawn ABOVE visible board (prevents instant collision)
+  // If immediate collision occurs, treat as restart: clear arena and continue (no freeze)
+  if(collide(arena, player)){
+    // clear and restart but do not halt loop
+    arena = createMatrix(COLS, ROWS);
+    player.score = 0;
+    updateScore();
+  }
+}
+
+function playerDrop(){
+  player.pos.y++;
+  if(collide(arena, player)){
+    player.pos.y--;
+    mergePlayer();
+    sweep();
+    playerReset();
+  }
+  dropCounter = 0;
+}
+
+function playerMove(dir){
+  player.pos.x += dir;
+  if(collide(arena, player)) player.pos.x -= dir;
+}
+
+function rotateMatrix(m){
+  // transpose + reverse rows
+  for(let y=0;y<m.length;y++){
+    for(let x=0;x<y;x++){
+      [m[x][y], m[y][x]] = [m[y][x], m[x][y]];
+    }
+  }
+  m.forEach(row => row.reverse());
+}
+
+/* wall kick simple */
+function playerRotate(){
+  const m = player.matrix;
+  const original = m.map(r=>r.slice());
+  rotateMatrix(m);
+  // try small kicks left/right
+  const kicks = [0,-1,1,-2,2];
+  const oldX = player.pos.x;
+  for(const k of kicks){
+    player.pos.x = oldX + k;
+    if(!collide(arena, player)) return;
+  }
+  // failed — revert
+  player.matrix = original;
+  player.pos.x = oldX;
+}
+
+/* hard drop: move down until collision then merge immediately */
+function hardDrop(){
+  while(!collide(arena, player)){
+    player.pos.y++;
+  }
+  player.pos.y--;
+  mergePlayer();
+  sweep();
+  playerReset();
+  dropCounter = 0;
+}
+
+/* ========= GAME LOOP ========= */
+function update(time=0){
+  if(!running) return;
+  const delta = time - lastTime;
+  lastTime = time;
+  dropCounter += delta;
+  if(dropCounter > dropInterval) playerDrop();
+  draw();
+  requestAnimationFrame(update);
+}
+
+/* ========= INPUTS ========= */
+// Touch/button helpers (prevents passive issue on iOS)
+function bindButton(id, fn){
+  const el = document.getElementById(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, {passive:false});
+  el.addEventListener('mousedown', e => { e.preventDefault(); fn(); });
+}
+bindButton('left', ()=>playerMove(-1));
+bindButton('right', ()=>playerMove(1));
+bindButton('down', ()=>playerDrop());
+bindButton('rotate', ()=>playerRotate());
+
+// keyboard controls for desktop
+window.addEventListener('keydown', e=>{
+  if(e.repeat) return; // optional - prevents too-fast repeats on hold (we still allow hold with interval)
+  switch(e.code){
+    case 'ArrowLeft': playerMove(-1); break;
+    case 'ArrowRight': playerMove(1); break;
+    case 'ArrowDown': playerDrop(); break;       // soft drop
+    case 'ArrowUp': playerRotate(); break;       // rotate with up
+    case 'Space': e.preventDefault(); playerRotate(); break; // space = rotate too
+    case 'Enter': e.preventDefault(); hardDrop(); break;     // enter = hard drop
+    case 'KeyW': playerRotate(); break; // extra
+    case 'KeyS': playerDrop(); break;
+    case 'KeyA': playerMove(-1); break;
+    case 'KeyD': playerMove(1); break;
+  }
 });
 
-/* Resize canvas properly on iPhone */
-function resizeCanvas() {
-    const container = document.getElementById("game-container");
+/* ========= SCORE UI ========= */
+function updateScore(){ scoreEl.textContent = 'Score: ' + player.score; }
 
-    // PERFECT 12:20 aspect ratio
-    const ratio = 20 / 12;
-
-    // make the canvas as tall as possible without exceeding width
-    let height = container.clientHeight;
-    let width = height / ratio;
-
-    // if it’s too wide, reduce height instead
-    if (width > container.clientWidth) {
-        width = container.clientWidth;
-        height = width * ratio;
-    }
-
-    // set CSS size
-    canvas.style.width = width + "px";
-    canvas.style.height = height + "px";
-
-    // set REAL canvas resolution to match
-    canvas.width = width;
-    canvas.height = height;
-
-    // scale drawing units
-    ctx.setTransform(1, 0, 0, 1, 0, 0);   // reset transform
-    ctx.scale(width / 12, height / 20);  // scale to grid size
+/* ========= INIT ========= */
+function init(){
+  // ensure arena correct size
+  arena = createMatrix(COLS, ROWS);
+  player = { pos:{x:0,y:0}, matrix:null, score:0 };
+  playerReset();
+  resizeCanvas();
+  updateScore();
+  lastTime = performance.now();
+  requestAnimationFrame(update);
 }
 
-function fixArenaSize() {
-    const correctHeight = 20;
-    const correctWidth = 12;
-
-    // If arena isn’t correct size after viewport changes → rebuild it
-    if (arena.length !== correctHeight || arena[0].length !== correctWidth) {
-        arena.length = 0;
-        for (let i = 0; i < correctHeight; i++) {
-            arena.push(new Array(correctWidth).fill(0));
-        }
-    }
-}
-
-window.addEventListener("resize", () => {
+/* keep canvas sized when viewport changes */
+let resizeId = null;
+window.addEventListener('resize', ()=> {
+  // debounce to avoid thrash during orientation change
+  if(resizeId) clearTimeout(resizeId);
+  resizeId = setTimeout(()=>{
     resizeCanvas();
-    fixArenaSize();
+    // ensure arena size still correct (defensive)
+    if(arena.length !== ROWS || arena[0].length !== COLS){
+      arena = createMatrix(COLS, ROWS);
+    }
+  }, 80);
 });
-resizeCanvas();
-fixArenaSize();
-</script>
 
+/* Prevent double-tap zoom on iOS (we already used touch-action, but add this to be safe) */
+document.addEventListener('touchstart', function(e){
+  if(e.touches.length > 1) e.preventDefault();
+},{passive:false});
+
+init();
+</script>
 </body>
 </html>
