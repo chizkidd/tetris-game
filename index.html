@@ -1,65 +1,33 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<title>Tetris — Stable</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>TETRIS</title>
 <style>
-  :root{--bg:#111;--panel:#222;--muted:#888}
-  html,body{
-    height:100%;margin:0;background:var(--bg);color:#fff;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto;
-    overflow:hidden; /* ADDED: prevents page scroll */
+  :root{--bg:#0d0d0d;--panel:#1a1a1a;--accent:#00d0ff}
+  html,body{margin:0;height:100%;background:var(--bg);color:#fff;font-family:system-ui;overflow:hidden}
+  body{display:flex;flex-direction:column}
+  header{background:var(--panel);padding:14px;text-align:center;position:relative}
+  h1{margin:0;font-size:22px}
+  #score{font-size:16px;margin-top:6px;color:#aaa}
+  #game-wrap{flex:1;display:flex;justify-content:center;align-items:center;padding:8px 8px 80px;box-sizing:border-box}
+  #game-container{width:100%;max-width:420px;height:100%;display:flex;justify-content:center;align-items:center}
+  canvas{background:#111;border-radius:12px;box-shadow:0 10px 30px #000;display:block}
+  #controls{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);padding:12px;display:flex;justify-content:space-around;gap:10px}
+  .btn{width:66px;height:66px;border-radius:14px;border:0;background:#333;color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;touch-action:manipulation}
+  .btn:active,.btn.active{background:var(--accent)}
+  #restartBtn{background:#e74c3c}
+  #restartBtn:active{background:#c0392b}
+  #overlay{
+    position:absolute;inset:0;background:rgba(0,0,0,0.9);
+    display:flex;flex-direction:column;justify-content:center;align-items:center;
+    font-size:28px;z-index:10;transition:opacity .4s
   }
-
-  header{background:var(--panel);padding:12px;text-align:center}
-  h1{margin:0;font-size:20px}
-  #score{margin-top:6px;font-size:15px;color:var(--muted)}
-
-  #game-wrap{
-    display:flex;flex:1;align-items:flex-start;justify-content:center;
-    padding:12px;box-sizing:border-box
+  #overlay.hidden{opacity:0;pointer-events:none}
+  @media(min-width:768px){
+    #controls{position:static;margin-top:12px;background:none;padding:0}
   }
-
-  #game-container{
-    width:100%;max-width:420px;
-    height:calc(100dvh - 210px); /* adjusted for new menu */
-    display:flex;align-items:center;justify-content:center;
-    position:relative
-  }
-
-  canvas{
-    background:var(--panel);display:block;border-radius:6px;
-    touch-action:none
-  }
-
-  /* Controls */
-  #controls{
-    position:fixed;left:0;right:0;bottom:8px;
-    display:flex;justify-content:space-around;
-    padding:10px 16px;gap:12px;
-    background:rgba(0,0,0,0.25)
-  }
-
-  .btn{
-    width:68px;height:68px;border-radius:12px;border:0;
-    background:#444;color:#fff;font-size:26px;
-    display:flex;align-items:center;justify-content:center;
-    touch-action:manipulation
-  }
-  .btn:active{background:#666}
-
-  /* ADDED: Game control bar */
-  #game-menu{
-    display:flex;justify-content:center;gap:10px;
-    padding:8px;background:#0003;
-  }
-  .menu-btn{
-    padding:8px 14px;border-radius:8px;
-    background:#444;border:0;color:white;font-size:14px;
-  }
-  .menu-btn:active{background:#666}
-
 </style>
 </head>
 <body>
@@ -69,291 +37,240 @@
   <div id="score">Score: 0</div>
 </header>
 
-<!-- ADDED: Game control menu -->
-<div id="game-menu">
-  <button class="menu-btn" id="startBtn">Start</button>
-  <button class="menu-btn" id="pauseBtn">Pause</button>
-  <button class="menu-btn" id="resumeBtn">Resume</button>
-  <button class="menu-btn" id="restartBtn">Restart</button>
-  <button class="menu-btn" id="endBtn">End</button>
-</div>
-
 <div id="game-wrap">
   <div id="game-container">
     <canvas id="board"></canvas>
+
+    <!-- Start / Game Over / Pause overlay -->
+    <div id="overlay">
+      <div id="overlayTitle">TETRIS</div>
+      <div id="overlayMsg">Tap or Press Any Key to Start</div>
+      <div id="finalScore" style="display:none;font-size:22px;margin-top:20px"></div>
+    </div>
   </div>
 </div>
 
 <div id="controls">
-  <button class="btn" id="left">←</button>
-  <button class="btn" id="rotate">⟳</button>
-  <button class="btn" id="right">→</button>
-  <button class="btn" id="down">↓</button>
+  <button class="btn" id="left">Left Arrow</button>
+  <button class="btn" id="rotate">Rotate</button>
+  <button class="btn" id="right">Right Arrow</button>
+  <button class="btn" id="down">Down Arrow</button>
+  <button class="btn" id="restartBtn">Restart</button>
 </div>
 
 <script>
-/* ========= CONFIG ========= */
+/* ====================== CONFIG ====================== */
 const COLS = 12, ROWS = 20;
-const PADDING = 12;
-const MAX_CANVAS_WIDTH = 420;
-const MIN_CELL = 18;
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d', {alpha:false});
+const scoreEl = document.getElementById('score');
+const overlay = document.getElementById('overlay');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlayMsg = document.getElementById('overlayMsg');
+const finalScoreEl = document.getElementById('finalScore');
 
-/* ========= DOM ========= */
-const canvas = document.getElementById("board");
-const ctx = canvas.getContext("2d",{alpha:false});
-const scoreEl = document.getElementById("score");
-const container = document.getElementById("game-container");
+/* ====================== STATE ====================== */
+let arena = createMatrix(COLS, ROWS);
+let player = {pos:{x:0,y:0}, matrix:null, score:0};
+let dropCounter = 0, dropInterval = 800, lastTime = 0;
+let gameRunning = false, gamePaused = false, gameOver = false;
 
-/* ========= STATE ========= */
-let arena, player, lastTime=0, dropCounter=0, dropInterval=700;
-let running = false;  // ADDED: start/pause system
+/* ====================== COLORS ====================== */
+const COLORS = [null,'#f1c40f','#e67e22','#9b59b6','#3498db','#1abc9c','#e74c3c','#2ecc71'];
 
-const COLORS=[null,"#f1c40f","#e67e22","#9b59b6","#3498db","#1abc9c","#e74c3c","#2ecc71"];
-
-/* ========= MATRIX ========= */
-function createMatrix(w,h){
-  return Array.from({length:h},()=>Array(w).fill(0));
+/* ====================== UTILS ====================== */
+function createMatrix(w,h){ return Array.from({length:h},()=>Array(w).fill(0));
+function randPiece(){ const p='ILJOTSZ'; return p[Math.floor(Math.random()*p.length)]; }
+function createPiece(t){
+  if(t==='I') return [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
+  if(t==='O') return [[2,2],[2,2]];
+  if(t==='T') return [[0,3,0],[3,3,3]];
+  if(t==='L') return [[0,0,4],[4,4,4]];
+  if(t==='J') return [[5,0,0],[5,5,5]];
+  if(t==='S') return [[0,6,6],[6,6,0]];
+  if(t==='Z') return [[7,7,0],[0,7,7]];
 }
 
-function createPiece(type){
-  if(type==="T") return [[0,1,0],[1,1,1]];
-  if(type==="O") return [[2,2],[2,2]];
-  if(type==="L") return [[0,0,3],[3,3,3]];
-  if(type==="J") return [[4,0,0],[4,4,4]];
-  if(type==="I") return [[0,5,0,0],[0,5,0,0],[0,5,0,0],[0,5,0,0]];
-  if(type==="S") return [[0,6,6],[6,6,0],[0,0,0]];
-  if(type==="Z") return [[7,7,0],[0,7,7],[0,0,0]];
-}
-
-function randPiece(){
-  const p="ILJOTSZ";
-  return p[Math.floor(Math.random()*p.length)];
-}
-
-/* ========= CANVAS RESIZE ========= */
-let cellW=20,cellH=20;
-
-function resizeCanvas(){
-  const rect=container.getBoundingClientRect();
-  let availH=rect.height - (PADDING*2);
-  let availW=Math.min(rect.width - (PADDING*2), MAX_CANVAS_WIDTH);
-
-  const fromH=Math.floor(availH/ROWS);
-  const fromW=Math.floor(availW/COLS);
-  const base=Math.max(Math.min(fromH,fromW),MIN_CELL);
-
-  const w=base*COLS;
-  const h=base*ROWS;
-
-  canvas.style.width=w+"px";
-  canvas.style.height=h+"px";
-  canvas.width=w;
-  canvas.height=h;
-
-  cellW=w/COLS;
-  cellH=h/ROWS;
-
+/* ====================== DRAW & RESIZE ====================== */
+let cellSize = 20;
+function resize(){
+  const rect = document.getElementById('game-container').getBoundingClientRect();
+  const maxW = Math.min(rect.width, 420);
+  const maxH = rect.height;
+  const size = Math.max(Math.min(maxW/COLS, maxH/ROWS), 18);
+  const w = size * COLS, h = size * ROWS;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = w; canvas.height = h;
+  cellSize = size;
   draw();
 }
+window.addEventListener('resize',()=>setTimeout(resize,100));
+resize();
 
-/* ========= DRAW ========= */
+/* ====================== GAME LOGIC ====================== */
 function draw(){
-  ctx.fillStyle="#222";
+  ctx.fillStyle = '#111';
   ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  for(let y=0;y<ROWS;y++){
-    for(let x=0;x<COLS;x++){
-      if(arena[y][x]) drawCell(x,y,COLORS[arena[y][x]]);
-    }
-  }
-
+  // locked blocks
+  arena.forEach((row,y)=>row.forEach((v,x)=>{
+    if(v) drawCell(x,y,COLORS[v]);
+  }));
+  // current piece
   if(player.matrix){
-    for(let y=0;y<player.matrix.length;y++){
-      for(let x=0;x<player.matrix[y].length;x++){
-        if(player.matrix[y][x]){
-          drawCell(x+player.pos.x, y+player.pos.y, COLORS[player.matrix[y][x]]);
-        }
-      }
-    }
+    player.matrix.forEach((row,y)=>row.forEach((v,x=>{
+      if(v) drawCell(player.pos.x+x, player.pos.y+y, COLORS[v]);
+    }));
   }
 }
-
 function drawCell(x,y,color){
   if(y<0) return;
-  ctx.fillStyle=color;
-  ctx.fillRect(
-    x*cellW+1, y*cellH+1,
-    cellW-2, cellH-2
-  );
+  const s = cellSize;
+  ctx.fillStyle = color;
+  ctx.fillRect(x*s+1, y*s+1, s-2, s-2);
 }
-
-/* ========= COLLISIONS ========= */
-function collide(arena,player){
-  const m=player.matrix,o=player.pos;
-  for(let y=0;y<m.length;y++){
-    for(let x=0;x<m[y].length;x++){
-      if(!m[y][x]) continue;
-      const ax=x+o.x, ay=y+o.y;
-      if(ay>=ROWS || ax<0 || ax>=COLS) return true;
-      if(ay>=0 && arena[ay][ax]!=0) return true;
-    }
+function collide(){
+  const m=player.matrix, o=player.pos;
+  for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+    if(m[y][x] && (arena[y+o.y] && arena[y+o.y][x+o.x])!==0) return true;
   }
-  return false;
+  return o.y+m.length>ROWS || o.x<0 || o.x+m[0].length>COLS;
 }
-
-function mergePlayer(){
-  player.matrix.forEach((row,y)=>{
-    row.forEach((v,x)=>{
-      if(v && player.pos.y+y>=0){
-        arena[player.pos.y+y][player.pos.x+x]=v;
-      }
-    });
-  });
+function merge(){
+  player.matrix.forEach((row,y)=>row.forEach((v,x)=>{
+    if(v && player.pos.y+y>=0) arena[player.pos.y+y][player.pos.x+x]=v;
+  }));
 }
-
-/* ========= LINES ========= */
 function sweep(){
   let lines=0;
-  for(let y=ROWS-1;y>=0;y--){
-    if(arena[y].every(v=>v!=0)){
-      arena.splice(y,1);
-      arena.unshift(new Array(COLS).fill(0));
-      lines++;y++;
-    }
+  outer:for(let y=ROWS-1;y>=0;y--){
+    for(let x=0;x<COLS;x++) if(!arena[y][x]) continue outer;
+    arena.splice(y,1);
+    arena.unshift(new Array(COLS).fill(0));
+    lines++;
   }
-  if(lines) player.score+=lines*10;
-  updateScore();
+  if(lines) player.score += lines*100;
 }
-
-/* ========= PLAYER ========= */
 function playerReset(){
-  player.matrix=createPiece(randPiece());
-  player.pos.x=Math.floor((COLS - player.matrix[0].length)/2);
-  player.pos.y=-2;
-
-  if(collide(arena,player)){
-    arena=createMatrix(COLS,ROWS);
-    player.score=0;
-    updateScore();
+  const type = randPiece();
+  player.matrix = createPiece(type);
+  player.pos.x = Math.floor((COLS-player.matrix[0].length)/2);
+  player.pos.y = 0;
+  if(collide()){
+    arena = createMatrix(COLS,ROWS);
+    player.score = 0;
+    gameOver = true;
+    showOverlay("GAME OVER",`Score: ${player.score}<br>Tap or Space to Restart`);
   }
 }
-
-function playerDrop(){
+function drop(){
   player.pos.y++;
-  if(collide(arena,player)){
+  if(collide()){
     player.pos.y--;
-    mergePlayer();
+    merge();
     sweep();
     playerReset();
   }
   dropCounter=0;
 }
-
-function playerMove(d){
-  player.pos.x+=d;
-  if(collide(arena,player)) player.pos.x-=d;
-}
-
-function rotateMatrix(m){
-  for(let y=0;y<m.length;y++){
-    for(let x=0;x<y;x++){
-      [m[x][y],m[y][x]]=[m[y][x],m[x][y]];
-    }
-  }
-  m.forEach(r=>r.reverse());
-}
-
-function playerRotate(){
-  const copy=player.matrix.map(r=>r.slice());
-  rotateMatrix(player.matrix);
-
-  const kicks=[0,-1,1,-2,2];
-  for(const k of kicks){
-    player.pos.x+=k;
-    if(!collide(arena,player)) return;
-    player.pos.x-=k;
-  }
-  player.matrix=copy;
-}
-
-/* ========= GAME LOOP ========= */
-function update(t=0){
-  if(!running) return;  // ADDED: pause system
-
-  const delta=t-lastTime;
-  lastTime=t;
-  dropCounter+=delta;
-
-  if(dropCounter>dropInterval) playerDrop();
-
-  draw();
-  requestAnimationFrame(update);
-}
-
-/* ========= SCORE ========= */
-function updateScore(){
-  scoreEl.textContent="Score: "+player.score;
-}
-
-/* ========= BUTTONS ========= */
-function bindBtn(id,fn){
-  const el=document.getElementById(id);
-  el.addEventListener("touchstart", e=>{e.preventDefault();fn();}, {passive:false});
-  el.addEventListener("mousedown", e=>{e.preventDefault();fn();});
-}
-
-bindBtn("left", ()=>playerMove(-1));
-bindBtn("right", ()=>playerMove(1));
-bindBtn("down", ()=>playerDrop());
-bindBtn("rotate", ()=>playerRotate());
-
-/* ========= GAME MENU BUTTONS ========= */
-document.getElementById("startBtn").onclick=function(){
-  if(!running){
-    running=true;
-    lastTime=performance.now();
-    requestAnimationFrame(update);
-  }
-};
-
-document.getElementById("pauseBtn").onclick=function(){
-  running=false;
-};
-
-document.getElementById("resumeBtn").onclick=function(){
-  if(!running){
-    running=true;
-    lastTime=performance.now();
-    requestAnimationFrame(update);
-  }
-};
-
-document.getElementById("restartBtn").onclick=function(){
-  init();
-  running=true;
-};
-
-document.getElementById("endBtn").onclick=function(){
-  running=false;
-};
-
-/* ========= INIT ========= */
-function init(){
-  arena=createMatrix(COLS,ROWS);
-  player={pos:{x:0,y:0},matrix:null,score:0};
+function hardDrop(){
+  while(!collide()) player.pos.y++;
+  player.pos.y--;
+  merge();
+  sweep();
   playerReset();
+  dropCounter=0;
+}
+function move(dir){
+  player.pos.x += dir;
+  if(collide()) player.pos.x -= dir;
+}
+function rotate(){
+  const original = player.matrix.map(r=>r.slice());
+  const oldX = player.pos.x;
+  // transpose + reverse
+  for(let y=0;y<player.matrix.length;y++)
+    for(let x=0;x<y;x++)
+      [player.matrix[x][y],player.matrix[y][x]] = [player.matrix[y][x],player.matrix[x][y]];
+  player.matrix.forEach(r=>r.reverse());
+  // simple wall kick
+  const kicks = [0,-1,1,-2,2];
+  for(const k of kicks){
+    player.pos.x = oldX + k;
+    if(!collide()) return;
+  }
+  player.matrix = original;
+  player.pos.x = oldX;
+}
+function updateScore(){ scoreEl.textContent = `Score: ${player.score}`; }
+
+/* ====================== INPUT ====================== */
+document.getElementById('left').onclick = ()=>move(-1);
+document.getElementById('right').onclick = ()=>move(1);
+document.getElementById('down').onclick = ()=>drop();
+document.getElementById('rotate').onclick = ()=>rotate();
+document.getElementById('restartBtn').onclick = restart;
+
+document.addEventListener('keydown',e=>{
+  if(gameOver || !gameRunning) return;
+  if(e.code==='ArrowLeft') move(-1);
+  if(e.code==='ArrowRight') move(1);
+  if(e.code==='ArrowDown') drop();
+  if(e.code==='ArrowUp' || e.code==='Space') { e.preventDefault(); rotate(); }
+  if(e.code==='Enter') hardDrop();
+  if(e.code==='KeyP') togglePause();
+});
+
+/* ====================== OVERLAY & GAME STATE ====================== */
+function showOverlay(title,msg=''){
+  overlayTitle.textContent = title;
+  overlayMsg.innerHTML = msg;
+  finalScoreEl.style.display = gameOver ? 'block' : 'none';
+  if(gameOver) finalScoreEl.innerHTML = `Score: ${player.score}`;
+  overlay.classList.remove('hidden');
+}
+function hideOverlay(){ overlay.classList.add('hidden'); }
+function togglePause(){
+  if(gameOver) return;
+  gamePaused = !gamePaused;
+  overlayTitle.textContent = gamePaused ? 'PAUSED' : 'TETRIS';
+  overlayMsg.textContent = gamePaused ? 'Press P or tap to resume' : '';
+  overlay.classList.toggle('hidden', !gamePaused);
+}
+function startGame(){
+  if(gameRunning && !gameOver) return;
+  gameRunning = true;
+  gamePaused = false;
+  gameOver = false;
+  arena = createMatrix(COLS,ROWS);
+  player.score = 0;
   updateScore();
-  resizeCanvas();
+  playerReset();
+  hideOverlay();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+function restart(){
+  startGame();
 }
 
-window.addEventListener("resize", ()=>setTimeout(resizeCanvas,120));
+/* Tap / click anywhere also starts/resumes */
+canvas.onclick = startGame;
+overlay.onclick = startGame;
 
-document.addEventListener("touchstart", e=>{
-  if(e.touches.length>1) e.preventDefault();
-},{passive:false});
+/* ====================== MAIN LOOP ====================== */
+function gameLoop(time=0){
+  if(!gameRunning || gamePaused){ requestAnimationFrame(gameLoop); return; }
+  const delta = time - lastTime;
+  lastTime = time;
+  dropCounter += delta;
+  if(dropCounter > dropInterval) drop();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
 
-init();
-
+/* Start screen */
+showOverlay('TETRIS','Tap screen or press any key');
 </script>
 </body>
 </html>
