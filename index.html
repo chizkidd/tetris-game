@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tetris</title>
     <style>
         body {
@@ -16,7 +16,11 @@
             font-family: 'Courier New', monospace;
             color: white;
             overflow: hidden;
-            touch-action: none;
+            touch-action: manipulation;
+            cursor: pointer;  /* iOS touch fix */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
         canvas {
             border: 6px solid #000;
@@ -24,6 +28,7 @@
             box-shadow: 0 15px 35px rgba(0,0,0,0.7);
             image-rendering: pixelated;
             background: #111;
+            display: block;
         }
         .title {
             margin: 20px 0 10px;
@@ -50,6 +55,7 @@
             justify-content: center;
             align-items: center;
             z-index: 10;
+            cursor: pointer;  /* Ensures touch fires */
         }
         #startOverlay h2 {
             font-size: 32px;
@@ -59,20 +65,21 @@
         #startOverlay p {
             font-size: 18px;
             margin: 0 0 40px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
     <div class="title">TETRIS</div>
     <div class="controls">
-        ← → Move • ↓ Soft drop • ↑ Rotate • SPACE Hard drop • P Pause
+        ← → Move • ↓ Soft drop • ↑ Rotate • SPACE Hard drop • P Pause • Swipe Left/Right on Mobile
     </div>
     <canvas id="canvas" width="240" height="480"></canvas>
 
-    <!-- Tap to start overlay for iOS -->
+    <!-- Tap to start overlay (iOS gesture trigger) -->
     <div id="startOverlay">
         <h2>Tap to Play</h2>
-        <p>Classic Tetris in your browser</p>
+        <p>Classic Tetris – Swipe to move, Tap to rotate</p>
     </div>
 
     <script>
@@ -82,18 +89,18 @@
         const BLOCK_SIZE = 24;
         const COLS = 10;
         const ROWS = 20;
+        let animationId = null;  // For requestAnimationFrame
+        let gameRunning = false;
 
-        // Tetromino shapes
+        // Set canvas size in JS (iOS fix)
+        canvas.width = 240;
+        canvas.height = 480;
+
+        // Tetromino shapes & colors (same as before)
         const SHAPES = [
-            [[1,1,1,1]],           // I
-            [[1,1],[1,1]],         // O
-            [[0,1,0],[1,1,1]],     // T
-            [[0,1,1],[1,1,0]],     // S
-            [[1,1,0],[0,1,1]],     // Z
-            [[1,0,0],[1,1,1]],     // J
-            [[0,0,1],[1,1,1]]      // L
+            [[1,1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[0,1,1],[1,1,0]],
+            [[1,1,0],[0,1,1]], [[1,0,0],[1,1,1]], [[0,0,1],[1,1,1]]
         ];
-
         const COLORS = ['#00f0f0', '#ffff00', '#a0a0ff', '#00f000', '#f00000', '#0000f0', '#f0a000'];
 
         let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
@@ -104,7 +111,7 @@
         let paused = false;
         let dropCounter = 0;
         let dropInterval = 1000;
-        let intervalId = null;  // For setInterval loop
+        let lastTime = 0;
 
         function createPiece() {
             const i = Math.floor(Math.random() * SHAPES.length);
@@ -130,215 +137,4 @@
                 }
             }
 
-            // Draw current piece
-            if (piece) {
-                piece.shape.forEach((row, py) => {
-                    row.forEach((value, px) => {
-                        if (value) {
-                            const drawX = piece.x + px;
-                            const drawY = piece.y + py;
-                            if (drawY >= 0) drawBlock(drawX, drawY, piece.color);
-                        }
-                    });
-                });
-            }
-
-            // UI
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 20px Courier New';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Score: ${score}`, 10, 30);
-            ctx.fillText(`Lines: ${lines}`, 10, 55);
-
-            if (gameOver) {
-                ctx.fillStyle = 'rgba(0,0,0,0.8)';
-                ctx.fillRect(30, 150, 180, 120);
-                ctx.fillStyle = 'white';
-                ctx.font = '24px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText('GAME OVER', 120, 190);
-                ctx.font = '16px Courier New';
-                ctx.fillText('Press SPACE', 120, 220);
-            }
-            if (paused) {
-                ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                ctx.fillRect(60, 200, 120, 60);
-                ctx.fillStyle = 'white';
-                ctx.font = '24px Courier New';
-                ctx.textAlign = 'center';
-                ctx.fillText('PAUSED', 120, 235);
-            }
-        }
-
-        function collide(piece) {
-            for (let y = 0; y < piece.shape.length; y++) {
-                for (let x = 0; x < piece.shape[y].length; x++) {
-                    if (piece.shape[y][x]) {
-                        const newX = piece.x + x;
-                        const newY = piece.y + y;
-                        if (newX < 0 || newX >= COLS || newY >= ROWS || (newY >= 0 && board[newY][newX])) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-
-        function merge() {
-            piece.shape.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value) {
-                        const newY = piece.y + y;
-                        if (newY >= 0) board[newY][piece.x + x] = piece.color;
-                    }
-                });
-            });
-        }
-
-        function rotate() {
-            const rotated = piece.shape[0].map((_, index) =>
-                piece.shape.map(row => row[row.length - 1 - index]).reverse()
-            );
-            const oldShape = piece.shape;
-            piece.shape = rotated;
-            if (collide(piece)) piece.shape = oldShape;
-        }
-
-        function clearLines() {
-            let linesCleared = 0;
-            board = board.filter(row => {
-                if (row.every(cell => cell !== 0)) {
-                    linesCleared++;
-                    return false;
-                }
-                return true;
-            });
-            while (board.length < ROWS) {
-                board.unshift(Array(COLS).fill(0));
-            }
-            lines += linesCleared;
-            score += linesCleared * 100;  // Simple scoring
-        }
-
-        function drop() {
-            piece.y++;
-            if (collide(piece)) {
-                piece.y--;
-                merge();
-                clearLines();
-                piece = createPiece();
-                if (collide(piece)) {
-                    gameOver = true;
-                }
-            }
-        }
-
-        function update(deltaTime) {
-            if (gameOver || paused) {
-                draw();
-                return;
-            }
-
-            dropCounter += deltaTime;
-            if (dropCounter > dropInterval) {
-                drop();
-                dropCounter = 0;
-            }
-
-            draw();
-        }
-
-        // Game loop using setInterval (iOS-safe, 60 FPS)
-        function gameLoop() {
-            const now = Date.now();
-            update(now - lastTime);
-            lastTime = now;
-        }
-
-        let lastTime = Date.now();
-
-        // Input handling
-        document.addEventListener('keydown', e => {
-            if (e.code === 'Space' && gameOver) {
-                e.preventDefault();
-                board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
-                score = 0;
-                lines = 0;
-                gameOver = false;
-                piece = createPiece();
-                return;
-            }
-            if (gameOver || paused) return;
-
-            e.preventDefault();
-            switch (e.code) {
-                case 'ArrowLeft':
-                    piece.x--;
-                    if (collide(piece)) piece.x++;
-                    break;
-                case 'ArrowRight':
-                    piece.x++;
-                    if (collide(piece)) piece.x--;
-                    break;
-                case 'ArrowDown':
-                    dropInterval = 50;
-                    break;
-                case 'ArrowUp':
-                    rotate();
-                    break;
-                case 'Space':
-                    while (!collide(piece)) piece.y++;
-                    piece.y--;
-                    dropCounter = dropInterval;
-                    break;
-                case 'KeyP':
-                    paused = !paused;
-                    break;
-            }
-        });
-
-        document.addEventListener('keyup', e => {
-            if (e.code === 'ArrowDown') dropInterval = 1000;
-        });
-
-        // Touch controls (simple left/right/swipe for mobile)
-        let touchStartX = 0;
-        canvas.addEventListener('touchstart', e => {
-            e.preventDefault();
-            touchStartX = e.touches[0].clientX;
-            overlay.style.display = 'none';  // Start game on first tap
-            if (!intervalId) {
-                intervalId = setInterval(gameLoop, 1000 / 60);  // 60 FPS
-                piece = createPiece();  // Create first piece
-            }
-        });
-
-        canvas.addEventListener('touchmove', e => {
-            e.preventDefault();
-            const touchEndX = e.touches[0].clientX;
-            if (Math.abs(touchEndX - touchStartX) > 50) {  // Swipe threshold
-                if (touchEndX > touchStartX) {
-                    piece.x++;  // Right
-                } else {
-                    piece.x--;  // Left
-                }
-                if (collide(piece)) piece.x = piece.x === 4 ? 3 : 5;  // Simple bound
-                touchStartX = touchEndX;
-            }
-        });
-
-        // Hide overlay and start on mouse click too
-        canvas.addEventListener('click', () => {
-            overlay.style.display = 'none';
-            if (!intervalId) {
-                intervalId = setInterval(gameLoop, 1000 / 60);
-                piece = createPiece();
-            }
-        });
-
-        // Initial draw (empty board)
-        draw();
-    </script>
-</body>
-</html>
+            // Draw
