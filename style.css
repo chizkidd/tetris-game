@@ -1,0 +1,144 @@
+html {
+  overflow: hidden;
+}
+body {
+  overflow: hidden;
+  position: relative;
+  padding: 0; 
+  margin: 0 auto;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  display: flex;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+}
+
+#game-container {
+	/* margin-top: 1vw; */
+    /* margin-left: 1vw; */
+    width: 100vw;
+    height: 100vh;
+	  display: flex;
+    justify-content: center;
+	 /* flex-direction: column; */
+	  align-content: center;
+    justify-items: center;
+    align-items: center;
+    flex-direction: row;
+    background-color: #575757;
+}
+
+
+
+#tetris {
+
+    width: 70vmin;
+    max-width: 48vh;
+    /* max-height: 100vmin; */
+    aspect-ratio: 1/2;
+    /* flex-direction: column; */
+    border: solid black 1px;
+}
+
+/* @media (orientation: landscape) {
+  #tetris {
+    height: 96vh;
+    width: 48vh;
+  } 
+} */
+/* #next-piece-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  justify-items: center;
+} */
+
+#next-piece {
+    /* position: absolute; */
+    /* top: 1vh; */
+    /* margin-right: 10px; */
+    /* margin-top: 10%; */
+    /* width: 20vmin; */
+    width: 100%;
+  }
+
+
+#left-boxes{
+  margin-right: 1vmin;
+  max-width: 20vmin;
+  /* width: 10vmin; */
+  display: flex;
+  flex-direction: column;
+  margin-top: 5vmin;
+  height: 90vmin;
+  align-items: center;
+}
+
+#right-boxes {
+  margin-left: 1vmin;
+  max-width: 0vmin;
+  width: 0vmin;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+}
+
+#score {
+    color: black;
+    font-size: 3vmin;
+    font-weight: bold;
+  }
+
+  #level {
+    color: black;
+    font-size: larger;
+    font-size: 3vmin;
+    font-weight: bold;
+  }
+
+#pause-btn {
+    /* width: 5vw; */
+    font-size: 3vmin;
+    font-weight: bold;
+}
+
+  #game-over {
+  color: red;
+  font-size: x-large;
+  font-size: 3vmin;
+  font-weight: bold;
+  display: none;
+}
+
+  #next-piece-label {
+    font-weight: bold;
+    font-size: 3vmin;
+    color: black;
+  }
+
+  #restart-btn {
+    font-size: 2vmin;
+    font-weight: bold;
+		display: none;
+    margin-top: 5%;
+  }
+
+  /* @media all and (orientation: portrait) {
+    #game-container {
+      flex-direction: column;
+    }
+
+    #right-boxes {
+      margin-left: 0;
+    }
+
+    #right-boxes {
+      margin-right: 0;
+    }
+  } */
+
